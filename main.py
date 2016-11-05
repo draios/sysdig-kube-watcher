@@ -180,6 +180,8 @@ while True:
                 # - get the user token for the team
                 # - loging with the new user token
                 #
+                print 'impersonating user ' + newusers[0]
+
                 ufetcher = metadata_fetcher.UsersFetcher(sysdig_superuser_token, SDC_URL)
                 utoken = ufetcher.fetch_user_token(newusers[0])
 
@@ -207,7 +209,36 @@ while True:
                 teamclient = SdcClient(utoken_t, SDC_URL)
 
                 #
-                # Add the alerts
+                # Now that we are in the right user context, we can start to apply the
+                # configurations. Here we set the grouping hierarchy.
+                #
+                print 'setting grouping'
+                res = teamclient.set_explore_grouping_hierarchy(['kubernetes.namespace.name', 'kubernetes.deployment.name', 'kubernetes.pod.name', 'container.id', ])
+                if res[0] == False:
+                    print 'Failed setting team grouping: ', res[1]
+                    continue
+
+                #
+                # Add the dashboards
+                #
+                for d in dashboards:
+                    print 'adding dasboard ' + d
+                    res = teamclient.create_dashboard_from_view(d, d, None)
+                    if not res[0]:
+                        print 'Error creating dasboard: ', res[1]
+
+                #
+                # Add the notification recipients
+                #
+                print 'adding notification recipients'
+                res = teamclient.create_email_notification_channel('Email Channel', recipients)
+                if not res[0]:
+                    if res[1][:20] != EXISTING_CHANNEL_ERR:
+                        print 'Error setting email recipient: ', res[1]
+                        continue
+
+                #
+                # Add the Alerts
                 #
                 notify_channels = [{'type': 'EMAIL', 'emailRecipients': recipients}]
                 res = sdclient.get_notification_ids(notify_channels)
@@ -216,27 +247,6 @@ while True:
                     sys.exit(-1)
                 notification_channel_ids = res[1]
 
-                #
-                # Now that we are in the right user context, we can start to apply the
-                # configurations
-                #
-                res = teamclient.set_explore_grouping_hierarchy(['kubernetes.namespace.name', 'kubernetes.deployment.name', 'kubernetes.pod.name', 'container.id', ])
-                if res[0] == False:
-                    print 'Failed setting team grouping: ', res[1]
-                    continue
-
-                #
-                # Add the notification recipients
-                #
-                res = teamclient.create_email_notification_channel('Email Channel', recipients)
-                if not res[0]:
-                    if res[1][:20] != EXISTING_CHANNEL_ERR:
-                        print 'Error setting email recipient: ', res[1]
-                        continue
-
-                #
-                # Add the alerts
-                #
                 for a in alerts:
                     res = teamclient.create_alert(a.get('name', ''),  # Alert name.
                         a.get('description', ''), # Alert description.
@@ -250,14 +260,6 @@ while True:
                         a.get('enabled', True))
                     if not res[0]:
                         print 'Error creating alert: ', res[1]
-
-                #
-                # Add the dashboards
-                #
-                for d in dashboards:
-                    res = teamclient.create_dashboard_from_view(d, d, None)
-                    if not res[0]:
-                        print 'Error creating dasboard: ', res[1]
 
                 print 'team added'
 
