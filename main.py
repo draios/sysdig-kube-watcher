@@ -74,7 +74,7 @@ while True:
                 ns_name = deployment['metadata']['namespace']
                 depl_name = deployment['metadata']['name']
                 team_members = deployment['metadata']['annotations']['teamMembers'].split(',')
-                trecipients = deployment['metadata']['annotations']['alert-recipients'].split(',')
+                trecipients = deployment['metadata']['annotations']['alertEmailRecipients'].split(',')
                 tdashboards = deployment['metadata']['annotations']['dashboards'].split(',')
                 alertsj = deployment['metadata']['annotations']['alerts']
 
