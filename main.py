@@ -7,18 +7,14 @@ import metadata_fetcher
 import time
 
 SDC_URL = 'https://app-staging2.sysdigcloud.com'
-KUBE_URL = 'http://192.168.131.175:8080'
+KUBE_URL = 'http://127.0.0.1:8080'
 
-'''
-sdclient = SdcClient('2e59fab4-92ba-4bc6-acf3-35ba26c00624', SDC_URL)
-#res = sdclient.set_explore_grouping_hierarchy(['kubernetes.namespace.name', 'kubernetes.deplyment.name', 'kubernetes.pod.name', 'container.id', ])
-for d in ['Service Overview', 'MySQL/PostgreSQL']:
-    res = sdclient.create_dashboard_from_view(d, d, None)
-'''
 TEAM_NOT_EXISTING_ERR = 'Could not find team'
 USER_NOT_FOUND_ERR = 'User not found'
 EXISTING_CHANNEL_ERR = 'A channel with name:'
 
+
+print "Script Starting"
 
 def log(str):
     print str
@@ -51,10 +47,14 @@ sysdig_superuser_token = sys.argv[2]
 sdc_token = customer_admin_token
 sdclient = SdcClient(sdc_token, SDC_URL)
 
+print "SDC client instantiated"
+
 while True:
     #
     # Parse the deployments
     #
+    print "Reading the Kubernetes API"
+
     try:
         resp = requests.get(KUBE_URL + '/apis/extensions/v1beta1/deployments')
     except:
@@ -80,6 +80,8 @@ while True:
 
                 team_name = "deployment_%s_%s" % (ns_name, depl_name)
 
+                print "Detected annotations for team " + team_name
+
                 #
                 # Resolve the user emails
                 #
@@ -88,8 +90,10 @@ while True:
                     res = sdclient.get_user(uname)
                     if res[0] == False:
                         if res[1] == USER_NOT_FOUND_ERR:
+                            print "adding user " + uname
                             res = sdclient.create_user_invite(uname)
                             res = sdclient.get_user(uname)
+                            print "User added"
                             if res[0] == False:
                                 log('cannot get user %s: %s' % (uname, res[1]))
                                 continue
@@ -99,6 +103,8 @@ while True:
 
                     uids.append(res[1]['id'])
                     users.append(uname)
+
+                print "Parsing annotations"
 
                 #
                 # Normalize alert recipients
@@ -165,7 +171,7 @@ while True:
                         continue
                     teamid = res[1]['team']['id']
 
-                print 'adding team ' + team_name
+                print 'added team ' + team_name
 
                 ###################################################################
                 # TEAM CONFIGURATION
@@ -180,12 +186,13 @@ while True:
                 # - get the user token for the team
                 # - loging with the new user token
                 #
-                print 'impersonating user ' + newusers[0]
 
                 ufetcher = metadata_fetcher.UsersFetcher(sysdig_superuser_token, SDC_URL)
                 utoken = ufetcher.fetch_user_token(newusers[0])
 
                 usdclient = SdcClient(utoken, SDC_URL)
+
+                print 'waiting for activation of user ' + newusers[0]
 
                 while True:
                     res = usdclient.get_user_token()
@@ -221,6 +228,8 @@ while True:
                 #
                 # Add the dashboards
                 #
+                print 'adding dashboards'
+
                 for d in dashboards:
                     print 'adding dasboard ' + d
                     res = teamclient.create_dashboard_from_view(d, d, None)
@@ -240,6 +249,8 @@ while True:
                 #
                 # Add the Alerts
                 #
+                print 'adding alerts'
+
                 notify_channels = [{'type': 'EMAIL', 'emailRecipients': recipients}]
                 res = sdclient.get_notification_ids(notify_channels)
                 if not res[0]:
