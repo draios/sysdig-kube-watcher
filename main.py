@@ -7,7 +7,7 @@ import metadata_fetcher
 import time
 
 SDC_URL = 'https://app-staging2.sysdigcloud.com'
-KUBE_URL = 'http://127.0.0.1:8080'
+KUBE_URL = 'http://192.168.131.216:8080'
 
 TEAM_NOT_EXISTING_ERR = 'Could not find team'
 USER_NOT_FOUND_ERR = 'User not found'
@@ -55,16 +55,21 @@ while True:
     #
     print "Reading the Kubernetes API"
 
+    '''
     try:
         resp = requests.get(KUBE_URL + '/apis/extensions/v1beta1/deployments')
     except:
         continue
 
     rdata = json.loads(resp.content)
+    '''
 
-    for deployment in rdata['items']:
+    if True:
+        with open('data.json', 'r') as outfile:
+            deployment = json.load(outfile)
+#    for deployment in rdata['items']:
         if 'annotations' in deployment['metadata']:
-            if 'teamMembers' in deployment['metadata']['annotations']:
+            if 'sysdigTeamMembers' in deployment['metadata']['annotations']:
                 uids = []
                 users = []
 
@@ -73,10 +78,10 @@ while True:
                 ###################################################################
                 ns_name = deployment['metadata']['namespace']
                 depl_name = deployment['metadata']['name']
-                team_members = deployment['metadata']['annotations']['teamMembers'].split(',')
-                trecipients = deployment['metadata']['annotations']['alertEmailRecipients'].split(',')
-                tdashboards = deployment['metadata']['annotations']['dashboards'].split(',')
-                alertsj = deployment['metadata']['annotations']['alerts']
+                team_members = deployment['metadata']['annotations']['sysdigTeamMembers'].split(',')
+                trecipients = deployment['metadata']['annotations']['sysdigAlertEmails'].split(',')
+                tdashboards = deployment['metadata']['annotations']['sysdigDashboards'].split(',')
+                alertsj = deployment['metadata']['annotations']['sysdigAlerts']
 
                 team_name = "deployment_%s_%s" % (ns_name, depl_name)
 
@@ -103,6 +108,10 @@ while True:
 
                     uids.append(res[1]['id'])
                     users.append(uname)
+
+                if len(users) == 0:
+                    log('No users specified for this team')
+                    continue
 
                 print "Parsing annotations"
 
@@ -132,7 +141,7 @@ while True:
                     continue
 
                 # XXX Clean this up
-                #res = sdclient.delete_team(team_name)
+                res = sdclient.delete_team(team_name)
 
                 #
                 # Check the existence of the team and create it if it doesn't exist
@@ -170,6 +179,7 @@ while True:
                         print 'Team creation failed: ', res[1]
                         continue
                     teamid = res[1]['team']['id']
+                    newusers = users
 
                 print 'added team ' + team_name
 
@@ -178,99 +188,110 @@ while True:
                 ###################################################################
 
                 #
-                # First of all, we need to impersonate the users in this team
-                # so that we can configure their workplace. This is
-                # currently a little bit tricky because it involves:
-                # - finding the user token using the admin API
-                # - with the user token, jump to the new team
-                # - get the user token for the team
-                # - loging with the new user token
+                # Go through the list of new users and set them up for this team
                 #
+                for user in newusers:
+                    #
+                    # First of all, we need to impersonate the users in this team
+                    # so that we can configure their workplace. This is
+                    # currently a little bit tricky because it involves:
+                    # - finding the user token using the admin API
+                    # - logging in with the new user token
+                    #
+                    print 'impersonating user ' + user
 
-                ufetcher = metadata_fetcher.UsersFetcher(sysdig_superuser_token, SDC_URL)
-                utoken = ufetcher.fetch_user_token(newusers[0])
-
-                usdclient = SdcClient(utoken, SDC_URL)
-
-                print 'waiting for activation of user ' + newusers[0]
-
-                while True:
-                    res = usdclient.get_user_token()
-                    if res[0] == True:
-                        break
+                    ufetcher = metadata_fetcher.UsersFetcher(sysdig_superuser_token, SDC_URL)
+                    res = ufetcher.fetch_user_token(user, teamid)
+                    if res[0] == False:
+                        print 'Can\'t fetch token for user ', user
+                        continue
                     else:
-                        time.sleep(3)
+                        utoken_t = res[1]
 
-                res = usdclient.switch_user_team(teamid)
-                if res[0] == False:
-                    print 'Team creation failed: ', res[1]
-                    continue
+                    teamclient = SdcClient(utoken_t, SDC_URL)
 
-                res = usdclient.get_user_token()
-                if res[0] == False:
-                    print 'Team creation failed: ', res[1]
-                    continue
+                    print 'waiting for activation of user ' + user
 
-                utoken_t = res[1]
+                    while True:
+                        res = teamclient.get_user_token()
+                        if res[0] == True:
+                            break
+                        else:
+                            time.sleep(3)
 
-                teamclient = SdcClient(utoken_t, SDC_URL)
-
-                #
-                # Now that we are in the right user context, we can start to apply the
-                # configurations. Here we set the grouping hierarchy.
-                #
-                print 'setting grouping'
-                res = teamclient.set_explore_grouping_hierarchy(['kubernetes.namespace.name', 'kubernetes.deployment.name', 'kubernetes.pod.name', 'container.id', ])
-                if res[0] == False:
-                    print 'Failed setting team grouping: ', res[1]
-                    continue
-
-                #
-                # Add the dashboards
-                #
-                print 'adding dashboards'
-
-                for d in dashboards:
-                    print 'adding dasboard ' + d
-                    res = teamclient.create_dashboard_from_view(d, d, None)
-                    if not res[0]:
-                        print 'Error creating dasboard: ', res[1]
-
-                #
-                # Add the notification recipients
-                #
-                print 'adding notification recipients'
-                res = teamclient.create_email_notification_channel('Email Channel', recipients)
-                if not res[0]:
-                    if res[1][:20] != EXISTING_CHANNEL_ERR:
-                        print 'Error setting email recipient: ', res[1]
+                    #
+                    # Now that we are in the right user context, we can start to apply the
+                    # configurations. First of all we set a default kube-friendly grouping hierarchy.
+                    #
+                    print 'setting grouping'
+                    res = teamclient.set_explore_grouping_hierarchy(['kubernetes.namespace.name', 'kubernetes.deployment.name', 'kubernetes.pod.name', 'container.id'])
+                    if res[0] == False:
+                        print 'Failed setting team grouping: ', res[1]
                         continue
 
-                #
-                # Add the Alerts
-                #
-                print 'adding alerts'
+                    #
+                    # Add the dashboards
+                    #
+                    print 'adding dashboards'
 
-                notify_channels = [{'type': 'EMAIL', 'emailRecipients': recipients}]
-                res = sdclient.get_notification_ids(notify_channels)
-                if not res[0]:
-                    print "Could not get IDs and hence not creating the alert: " + res[1]
-                    sys.exit(-1)
-                notification_channel_ids = res[1]
-
-                for a in alerts:
-                    res = teamclient.create_alert(a.get('name', ''),  # Alert name.
-                        a.get('description', ''), # Alert description.
-                        a.get('severity', 6), # Syslog-encoded severity. 6 means 'info'.
-                        a.get('timespan', 60000000), # The alert will fire if the condition is met for at least 60 seconds.
-                        a.get('condition', ''), # The condition.
-                        a.get('segmentBy', []), # Segmentation. We want to check this metric for every process on every machine.
-                        a.get('segmentCondition', 'ANY'), # in case there is more than one tomcat process, this alert will fire when a single one of them crosses the 80% threshold.
-                        a.get('filter', ''), # Filter. We want to receive a notification only if the name of the process meeting the condition is 'tomcat'.
-                        notification_channel_ids,
-                        a.get('enabled', True))
+                    res = teamclient.get_dashboards()
                     if not res[0]:
-                        print 'Error creating alert: ', res[1]
+                        print 'Error getting the dasboards list: ', res[1]
+                        break
+                    existing_dasboards = res[1]['dashboards']
+
+                    for d in dashboards:
+                        skip = False
+                        for ex in existing_dasboards:
+                            if ex['name'] == d:
+                                if ex['isShared'] and 'annotations' in ex and ex['annotations'].get('engineTeam') == team_name + d:
+                                    # dashboard already exists. Skip adding it
+                                    skip = True
+                                    break
+
+                        if skip:
+                            continue
+
+                        print 'adding dasboard ' + d
+                        res = teamclient.create_dashboard_from_view(d, d, None, True, {'engineTeam': team_name + d})
+                        if not res[0]:
+                            print 'Error creating dasboard: ', res[1]
+
+                    #
+                    # Add the notification recipients
+                    #
+                    print 'adding notification recipients'
+                    res = teamclient.create_email_notification_channel('Email Channel', recipients)
+                    if not res[0]:
+                        if res[1][:20] != EXISTING_CHANNEL_ERR:
+                            print 'Error setting email recipient: ', res[1]
+                            continue
+
+                    #
+                    # Add the Alerts
+                    #
+                    print 'adding alerts'
+
+                    notify_channels = [{'type': 'EMAIL', 'emailRecipients': recipients}]
+                    res = sdclient.get_notification_ids(notify_channels)
+                    if not res[0]:
+                        print "Could not get IDs and hence not creating the alert: " + res[1]
+                        sys.exit(-1)
+                    notification_channel_ids = res[1]
+
+                    for a in alerts:
+                        res = teamclient.create_alert(a.get('name', ''),  # Alert name.
+                            a.get('description', ''), # Alert description.
+                            a.get('severity', 6), # Syslog-encoded severity. 6 means 'info'.
+                            a.get('timespan', 60000000), # The alert will fire if the condition is met for at least 60 seconds.
+                            a.get('condition', ''), # The condition.
+                            a.get('segmentBy', []), # Segmentation. We want to check this metric for every process on every machine.
+                            a.get('segmentCondition', 'ANY'), # in case there is more than one tomcat process, this alert will fire when a single one of them crosses the 80% threshold.
+                            a.get('filter', ''), # Filter. We want to receive a notification only if the name of the process meeting the condition is 'tomcat'.
+                            notification_channel_ids,
+                            a.get('enabled', True))
+                        if not res[0]:
+                            print 'Error creating alert: ', res[1]
 
                 print 'team added'
 

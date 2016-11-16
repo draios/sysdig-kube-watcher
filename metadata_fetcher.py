@@ -12,7 +12,7 @@ class UsersFetcher(object):
         self._sdc_url = sdc_url
         self._sdc_token = sdc_token
 
-    def fetch_user_token(self, username):
+    def fetch_user_token(self, username, teamid):
         #
         # setup the headers
         #
@@ -21,6 +21,11 @@ class UsersFetcher(object):
         #
         # Iterate through the agents to find users with at least one agent
         #
-        r = requests.get(self._sdc_url + "/api/admin/user/%s/token" % username, headers=hdrs)
+        r = requests.get(self._sdc_url + "/api/admin/user/%s/%s/token" % (username, teamid), headers=hdrs)
 
-        return r.json()['token']['key']
+        jdata = r.json()
+
+        if 'token' in jdata:
+            return [True, jdata['token']['key']]
+        else:
+            return [False, None]
