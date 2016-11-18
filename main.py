@@ -3,35 +3,15 @@ import json
 import sys
 sys.path.insert(0, '../python-sdc-client')
 from sdcclient import SdcClient
-from kube_obj_parser import KubeObjParser
-import time
+from kube_obj_parser import KubeObjParser, KubeURLParser
 
 SDC_URL = 'https://app-staging2.sysdigcloud.com'
-KUBE_URL = 'http://192.168.131.216:8080'
+KUBE_URL = 'http://192.168.131.252:8080'
 
 print "Script Starting"
 
 def log(str):
     print str
-
-class AdminUsersFetcher(object):
-    def __init__(self, sdc_token, sdc_url='https://app.sysdigcloud.com'):
-        self._sdc_url = sdc_url
-        self._sdc_token = sdc_token
-
-    def fetch_user_token(self, token, username):
-        #
-        # setup the headers
-        #
-        hdrs = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'}
-
-        #
-        # Iterate through the agents to find users with at least one agent
-        #
-        r = requests.get(self._sdc_url + "/api/admin/user/%s/token" % username, headers=hdrs)
-
-        return r.json()['token']['key']
-
 
 customer_admin_token = sys.argv[1]
 sysdig_superuser_token = sys.argv[2]
@@ -41,36 +21,25 @@ sysdig_superuser_token = sys.argv[2]
 #
 ca_sdclient = SdcClient(customer_admin_token, SDC_URL)
 
-print "SDC client instantiated"
-
 #
-# Go in a loop dwtwcting kubernetes changes
+# Go in a loop detecting kubernetes changes
 #
 while True:
+    log("Reading the Kubernetes API")
+
+    #
+    # Parse the namespaces
+    #
+    urlparser = KubeURLParser('namespace', ca_sdclient, sysdig_superuser_token, SDC_URL)
+    urlparser.parse(KUBE_URL + '/api/v1/namespaces')
+
     #
     # Parse the deployments
     #
-    print "Reading the Kubernetes API"
-
-    '''
-    try:
-        resp = requests.get(KUBE_URL + '/apis/extensions/v1beta1/deployments')
-    except:
-        continue
-
-    rdata = json.loads(resp.content)
-    '''
-
-    if True:
-        with open('data.json', 'r') as outfile:
-            deployment = json.load(outfile)
-#    for deployment in rdata['items']:
-        parser = KubeObjParser(ca_sdclient, sysdig_superuser_token, SDC_URL)
-        parser.parse(deployment)
-        print 'team added'
+    urlparser = KubeURLParser('deployment', ca_sdclient, sysdig_superuser_token, SDC_URL)
+    urlparser.parse(KUBE_URL + '/apis/extensions/v1beta1/deployments')
 
     #
-    # We cycled through all of the deployments. Wait 3 seconds before checking
-    # for changes
+    # Sleep a bit before checking again for changes
     #
-    time.sleep(3)
+    time.sleep(5)
