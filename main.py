@@ -30,14 +30,14 @@ while True:
     #
     # Parse the namespaces
     #
-#    urlparser = KubeURLParser('namespace', ca_sdclient, sysdig_superuser_token, SDC_URL)
-#    urlparser.parse(KUBE_URL + '/api/v1/namespaces')
+    urlparser = KubeURLParser('namespace', ca_sdclient, sysdig_superuser_token, SDC_URL)
+    urlparser.parse(KUBE_URL + '/api/v1/namespaces')
 
     #
     # Parse the deployments
     #
-#    urlparser = KubeURLParser('deployment', ca_sdclient, sysdig_superuser_token, SDC_URL)
-#    urlparser.parse(KUBE_URL + '/apis/extensions/v1beta1/deployments')
+    urlparser = KubeURLParser('deployment', ca_sdclient, sysdig_superuser_token, SDC_URL)
+    urlparser.parse(KUBE_URL + '/apis/extensions/v1beta1/deployments')
 
     #
     # Parse the services
