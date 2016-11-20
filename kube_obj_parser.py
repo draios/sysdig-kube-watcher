@@ -11,9 +11,10 @@ TEAM_NOT_EXISTING_ERR = 'Could not find team'
 USER_NOT_FOUND_ERR = 'User not found'
 EXISTING_CHANNEL_ERR = 'A channel with name:'
 
-#
-# This class retrieves the credentials information of all the users
-#
+###############################################################################
+# This class parses the annotations of a kubernetes object (namespace, 
+# deployment...) and applies the appropriate SDC team configuration
+###############################################################################
 class KubeObjParser(object):
     def __init__(self, type, customer_admin_sdclient, sysdig_superuser_token, sdc_url):
         self._customer_admin_sdclient = customer_admin_sdclient
@@ -28,14 +29,14 @@ class KubeObjParser(object):
         ###################################################################
         # TEAM CREATION
         ###################################################################
-        depl_name = objdata['metadata']['name']
+        obj_name = objdata['metadata']['name']
         team_members = objdata['metadata']['annotations']['sysdigTeamMembers'].split(',')
         trecipients = objdata['metadata']['annotations']['sysdigAlertEmails'].split(',')
         tdashboards = objdata['metadata']['annotations']['sysdigDashboards'].split(',')
         alertsj = objdata['metadata']['annotations']['sysdigAlerts']
-        if self._type == 'deployment':
+        if self._type == 'deployment' or self._type == 'service':
             ns_name = objdata['metadata']['namespace']
-            team_name = "%s_%s_%s" % (self._type, ns_name, depl_name)
+            team_name = "%s_%s_%s" % (self._type, ns_name, obj_name)
         elif self._type == 'namespace':
             ns_name = objdata['metadata']['name']
             team_name = "%s_%s" % (self._type, ns_name)
@@ -131,7 +132,9 @@ class KubeObjParser(object):
         else:
             # Team doesn't exist. Try to create it.
             if self._type == 'deployment':
-                flt = 'kubernetes.namespace.name = "%s" and kubernetes.deployment.name = "%s"' % (ns_name, depl_name)
+                flt = 'kubernetes.namespace.name = "%s" and kubernetes.deployment.name = "%s"' % (ns_name, obj_name)
+            elif self._type == 'service':
+                flt = 'kubernetes.namespace.name = "%s" and kubernetes.service.name = "%s"' % (ns_name, obj_name)
             elif self._type == 'namespace':
                 flt = 'kubernetes.namespace.name = "%s"' % ns_name
             desc = 'automatically generated team based on deployment annotations'
@@ -185,7 +188,10 @@ class KubeObjParser(object):
             # configurations. First of all we set a default kube-friendly grouping hierarchy.
             #
             print 'setting grouping'
-            res = teamclient.set_explore_grouping_hierarchy(['kubernetes.namespace.name', 'kubernetes.deployment.name', 'kubernetes.pod.name', 'container.id'])
+            if self._type == 'service':
+                res = teamclient.set_explore_grouping_hierarchy(['kubernetes.namespace.name', 'kubernetes.service.name', 'kubernetes.pod.name', 'container.id'])
+            else:
+                res = teamclient.set_explore_grouping_hierarchy(['kubernetes.namespace.name', 'kubernetes.deployment.name', 'kubernetes.pod.name', 'container.id'])
 
             if res[0] == False:
                 print 'Failed setting team grouping: ', res[1]
@@ -255,9 +261,11 @@ class KubeObjParser(object):
                 if not res[0]:
                     print 'Error creating alert: ', res[1]
 
-#
-# This class retrieves the credentials information of all the users
-#
+###############################################################################
+# This class parses the annotations of the kubernetes objects in a particular 
+# API endoint (namespaces, deployments...) and applies the appropriate SDC 
+# team configuration for each of the objects.
+###############################################################################
 class KubeURLParser(object):
     def __init__(self, type, customer_admin_sdclient, sysdig_superuser_token, sdc_url):
         self._customer_admin_sdclient = customer_admin_sdclient

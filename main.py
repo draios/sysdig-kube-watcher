@@ -6,7 +6,7 @@ from sdcclient import SdcClient
 from kube_obj_parser import KubeObjParser, KubeURLParser
 
 SDC_URL = 'https://app-staging2.sysdigcloud.com'
-KUBE_URL = 'http://192.168.131.252:8080'
+KUBE_URL = 'http://192.168.131.141:8080'
 
 print "Script Starting"
 
@@ -30,14 +30,20 @@ while True:
     #
     # Parse the namespaces
     #
-    urlparser = KubeURLParser('namespace', ca_sdclient, sysdig_superuser_token, SDC_URL)
-    urlparser.parse(KUBE_URL + '/api/v1/namespaces')
+#    urlparser = KubeURLParser('namespace', ca_sdclient, sysdig_superuser_token, SDC_URL)
+#    urlparser.parse(KUBE_URL + '/api/v1/namespaces')
 
     #
     # Parse the deployments
     #
-    urlparser = KubeURLParser('deployment', ca_sdclient, sysdig_superuser_token, SDC_URL)
-    urlparser.parse(KUBE_URL + '/apis/extensions/v1beta1/deployments')
+#    urlparser = KubeURLParser('deployment', ca_sdclient, sysdig_superuser_token, SDC_URL)
+#    urlparser.parse(KUBE_URL + '/apis/extensions/v1beta1/deployments')
+
+    #
+    # Parse the services
+    #
+    urlparser = KubeURLParser('service', ca_sdclient, sysdig_superuser_token, SDC_URL)
+    urlparser.parse(KUBE_URL + '/api/v1/services')
 
     #
     # Sleep a bit before checking again for changes
