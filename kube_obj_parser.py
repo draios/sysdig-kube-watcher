@@ -137,8 +137,6 @@ class KubeObjParser(object):
                 if res[0] == False:
                     Logger.log('Team editing failed: ' + res[1], 'error')
                     return False
-#            else:
-#                return True
         else:
             Logger.log("Detected new %s %s, adding team" % (self._type, obj_name, team_name))
 
@@ -164,7 +162,11 @@ class KubeObjParser(object):
         #
         # Go through the list of new users and set them up for this team
         #
+        j = 0
+
         for user in users:
+            j = j + 1
+
             #
             # First of all, we need to impersonate the users in this team
             # so that we can configure their workplace. This is
@@ -237,26 +239,32 @@ class KubeObjParser(object):
                     Logger.log('Error creating dasboard: ' + res[1], 'error')
 
             #
-            # Add the notification recipients
+            # Configure notifications.This will just silently fail if the 
+            # notfication channel has already been created, but we still do it
+            # for the first user only to make things more efficient.
             #
-            Logger.log('adding notification recipients')
-            res = teamclient.create_email_notification_channel('Email Channel', recipients)
-            if not res[0]:
-                if res[1][:20] != EXISTING_CHANNEL_ERR:
-                    Logger.log('Error setting email recipient: ' + res[1], 'error')
+            if j == 1:
+                #
+                # Add the notification recipients
+                #
+                Logger.log('adding notification recipients')
+                res = teamclient.create_email_notification_channel('Email Channel', recipients)
+                if not res[0]:
+                    if res[1][:20] != EXISTING_CHANNEL_ERR:
+                        Logger.log('Error setting email recipient: ' + res[1], 'error')
+                        return False
+
+                #
+                # Add the Notification channels
+                #
+                Logger.log('adding alerts')
+
+                notify_channels = [{'type': 'EMAIL', 'emailRecipients': recipients}]
+                res = self._customer_admin_sdclient.get_notification_ids(notify_channels)
+                if not res[0]:
+                    Logger.log("cannot create the email notification channel: " + res[1], 'error')
                     return False
-
-            #
-            # Add the Notification channels
-            #
-            Logger.log('adding alerts')
-
-            notify_channels = [{'type': 'EMAIL', 'emailRecipients': recipients}]
-            res = self._customer_admin_sdclient.get_notification_ids(notify_channels)
-            if not res[0]:
-                Logger.log("cannot create the email notification channel: " + res[1], 'error')
-                return False
-            notification_channel_ids = res[1]
+                notification_channel_ids = res[1]
 
             #
             # Add the Alerts
