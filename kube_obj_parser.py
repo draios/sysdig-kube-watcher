@@ -3,6 +3,7 @@ import json
 import requests
 import sys
 import hashlib
+import traceback
 sys.path.insert(0, '../python-sdc-client')
 from sdcclient import SdcClient
 import metadata_fetcher
@@ -124,9 +125,10 @@ class KubeObjParser(object):
 
         if team_exists:
             # Team exists. Detect if there are users to add and edit the team users list.
+            newusers = []
+
             if teaminfo['users'] != uids:
                 Logger.log("Detected modified %s %s, editing team" % (self._type, obj_name, team_name))
-                newusers = []
                 for j in range(0, len(uids)):
                     if not uids[j] in teaminfo['users']:
                         newusers.append(users[j])
@@ -162,7 +164,7 @@ class KubeObjParser(object):
         #
         # Go through the list of new users and set them up for this team
         #
-        for user in newusers:
+        for user in users:
             #
             # First of all, we need to impersonate the users in this team
             # so that we can configure their workplace. This is
@@ -194,22 +196,23 @@ class KubeObjParser(object):
             #
             # Now that we are in the right user context, we can start to apply the
             # configurations. First of all we set a default kube-friendly grouping hierarchy.
+            # We do this only is the user is new to the group, because we don't want to
+            # pollute the grouping of existing users.
             #
-            Logger.log('setting grouping')
-            if self._type == 'service':
-                res = teamclient.set_explore_grouping_hierarchy(['kubernetes.namespace.name', 'kubernetes.service.name', 'kubernetes.pod.name', 'container.id'])
-            else:
-                res = teamclient.set_explore_grouping_hierarchy(['kubernetes.namespace.name', 'kubernetes.deployment.name', 'kubernetes.pod.name', 'container.id'])
+            if user in newusers:
+                Logger.log('setting grouping')
+                if self._type == 'service':
+                    res = teamclient.set_explore_grouping_hierarchy(['kubernetes.namespace.name', 'kubernetes.service.name', 'kubernetes.pod.name', 'container.id'])
+                else:
+                    res = teamclient.set_explore_grouping_hierarchy(['kubernetes.namespace.name', 'kubernetes.deployment.name', 'kubernetes.pod.name', 'container.id'])
 
-            if res[0] == False:
-                Logger.log('Failed setting team grouping: ' + res[1], 'error')
-                return False
+                if res[0] == False:
+                    Logger.log('Failed setting team grouping: ' + res[1], 'error')
+                    return False
 
             #
             # Add the dashboards
             #
-            Logger.log('adding dashboards')
-
             res = teamclient.get_dashboards()
             if not res[0]:
                 Logger.log('Error getting the dasboards list: ' + res[1], 'error')
@@ -356,6 +359,6 @@ class KubeURLParser(object):
                     try:
                         self._parser.parse(deployment)
                     except:
-                        log(sys.exc_info()[1], 'error')
+                        Logger.log(sys.exc_info()[1], 'error')
                         traceback.print_exc()
                         continue
