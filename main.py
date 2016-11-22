@@ -8,13 +8,13 @@ from sdcclient import SdcClient
 from kube_obj_parser import KubeObjParser, KubeURLParser, Logger
 
 SDC_URL = 'https://app-staging2.sysdigcloud.com'
-KUBE_URL = 'http://192.168.131.141:8080'
 
 def log(str, severity='info'):
     Logger.log(str, severity)
 
-customer_admin_token = sys.argv[1]
-sysdig_superuser_token = sys.argv[2]
+kube_url = sys.argv[1]
+customer_admin_token = sys.argv[2]
+sysdig_superuser_token = sys.argv[3]
 
 log("Script Starting")
 
@@ -49,17 +49,17 @@ while True:
         #
         # Parse the namespaces
         #
-    #    urlparser_ns.parse(KUBE_URL + '/api/v1/namespaces')
+#        urlparser_ns.parse(kube_url + '/api/v1/namespaces')
 
         #
         # Parse the deployments
         #
-        urlparser_depl.parse(KUBE_URL + '/apis/extensions/v1beta1/deployments')
+        urlparser_depl.parse(kube_url + '/apis/extensions/v1beta1/deployments')
 
         #
         # Parse the services
         #
-    #    urlparser_srvc.parse(KUBE_URL + '/api/v1/services')
+#        urlparser_srvc.parse(kube_url + '/api/v1/services')
     except:
         log(sys.exc_info()[1], 'error')
         traceback.print_exc()
