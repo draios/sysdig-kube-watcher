@@ -2,25 +2,35 @@ import os
 import json
 import requests
 import sys
+import hashlib
 sys.path.insert(0, '../python-sdc-client')
 from sdcclient import SdcClient
 import metadata_fetcher
 import time
+from time import gmtime, strftime
 
 TEAM_NOT_EXISTING_ERR = 'Could not find team'
 USER_NOT_FOUND_ERR = 'User not found'
 EXISTING_CHANNEL_ERR = 'A channel with name:'
+
+class Logger(object):
+    @staticmethod
+    def log(str, severity='info'):
+        time = strftime('%Y-%m-%d %H:%M:%S', gmtime())
+        print '%s - %s - %s' % (time, severity, str)
 
 ###############################################################################
 # This class parses the annotations of a kubernetes object (namespace, 
 # deployment...) and applies the appropriate SDC team configuration
 ###############################################################################
 class KubeObjParser(object):
-    def __init__(self, type, customer_admin_sdclient, sysdig_superuser_token, sdc_url):
+    def __init__(self, type, customer_admin_sdclient, customer_id, sysdig_superuser_token, sdc_url):
         self._customer_admin_sdclient = customer_admin_sdclient
+        self._customer_id = customer_id
         self._sysdig_superuser_token = sysdig_superuser_token
         self._sdc_url = sdc_url
         self._type = type
+        self._customer_id = customer_id
 
     def parse(self, objdata):
         uids = []
@@ -41,38 +51,35 @@ class KubeObjParser(object):
             ns_name = objdata['metadata']['name']
             team_name = "%s_%s" % (self._type, ns_name)
         else:
-            log('unrecognized type argument')
+            Logger.log('unrecognized type argument', 'error')
             return False
 
-        print "Detected annotations for team " + team_name
-
         #
-        # Resolve the user emails
+        # Resolve the user emails.
+        # Add the users that are not part of sysdig cloud yet.
         #
         for o in team_members:
             uname = o.strip()
             res = self._customer_admin_sdclient.get_user(uname)
             if res[0] == False:
                 if res[1] == USER_NOT_FOUND_ERR:
-                    print "adding user " + uname
+                    Logger.log("adding user " + uname)
                     res = self._customer_admin_sdclient.create_user_invite(uname)
                     res = self._customer_admin_sdclient.get_user(uname)
-                    print "User added"
+                    Logger.log("User added")
                     if res[0] == False:
-                        log('cannot get user %s: %s' % (uname, res[1]))
+                        Logger.log('cannot get user %s: %s' % (uname, res[1]), 'error')
                         continue
                 else:
-                    log('cannot get user %s: %s' % (uname, res[1]))
+                    Logger.log('cannot get user %s: %s' % (uname, res[1]), 'error')
                     continue
 
             uids.append(res[1]['id'])
             users.append(uname)
 
         if len(users) == 0:
-            log('No users specified for this team')
+            Logger.log('No users specified for this team. Skipping.', 'error')
             return False
-
-        print "Parsing annotations"
 
         #
         # Normalize alert recipients
@@ -96,11 +103,11 @@ class KubeObjParser(object):
         try:
             alerts = json.loads(alertsj)
         except ValueError:
-            print 'Invalid JSON in the "alerts" field'
+            Logger.log('Invalid JSON in the "alerts" field', 'error')
             return False
 
         # XXX Clean this up
-        res = self._customer_admin_sdclient.delete_team(team_name)
+#        res = self._customer_admin_sdclient.delete_team(team_name)
 
         #
         # Check the existence of the team and create it if it doesn't exist
@@ -118,6 +125,7 @@ class KubeObjParser(object):
         if team_exists:
             # Team exists. Detect if there are users to add and edit the team users list.
             if teaminfo['users'] != uids:
+                Logger.log("Detected modified %s %s, editing team" % (self._type, obj_name, team_name))
                 newusers = []
                 for j in range(0, len(uids)):
                     if not uids[j] in teaminfo['users']:
@@ -125,11 +133,13 @@ class KubeObjParser(object):
 
                 res = self._customer_admin_sdclient.edit_team(team_name, users=users)
                 if res[0] == False:
-                    print 'Team editing failed: ', res[1]
+                    Logger.log('Team editing failed: ' + res[1], 'error')
                     return False
-            else:
-                return True
+#            else:
+#                return True
         else:
+            Logger.log("Detected new %s %s, adding team" % (self._type, obj_name, team_name))
+
             # Team doesn't exist. Try to create it.
             if self._type == 'deployment':
                 flt = 'kubernetes.namespace.name = "%s" and kubernetes.deployment.name = "%s"' % (ns_name, obj_name)
@@ -140,12 +150,10 @@ class KubeObjParser(object):
             desc = 'automatically generated team based on deployment annotations'
             res = self._customer_admin_sdclient.create_team(team_name, filter=flt, description=desc, show='container', users=users)
             if res[0] == False:
-                print 'Team creation failed: ', res[1]
+                Logger.log('Team creation failed: ' + res[1], 'error')
                 return False
             teamid = res[1]['team']['id']
             newusers = users
-
-        print 'added team ' + team_name
 
         ###################################################################
         # TEAM CONFIGURATION
@@ -162,19 +170,19 @@ class KubeObjParser(object):
             # - finding the user token using the admin API
             # - logging in with the new user token
             #
-            print 'impersonating user ' + user
+            Logger.log('impersonating user ' + user)
 
             ufetcher = metadata_fetcher.UsersFetcher(self._sysdig_superuser_token, self._sdc_url)
             res = ufetcher.fetch_user_token(user, teamid)
             if res[0] == False:
-                print 'Can\'t fetch token for user ', user
+                Logger.log('Can\'t fetch token for user ' + user, 'error')
                 return False
             else:
                 utoken_t = res[1]
 
             teamclient = SdcClient(utoken_t, self._sdc_url)
 
-            print 'waiting for activation of user ' + user
+            Logger.log('waiting for activation of user ' + user)
 
             while True:
                 res = teamclient.get_user_token()
@@ -187,24 +195,24 @@ class KubeObjParser(object):
             # Now that we are in the right user context, we can start to apply the
             # configurations. First of all we set a default kube-friendly grouping hierarchy.
             #
-            print 'setting grouping'
+            Logger.log('setting grouping')
             if self._type == 'service':
                 res = teamclient.set_explore_grouping_hierarchy(['kubernetes.namespace.name', 'kubernetes.service.name', 'kubernetes.pod.name', 'container.id'])
             else:
                 res = teamclient.set_explore_grouping_hierarchy(['kubernetes.namespace.name', 'kubernetes.deployment.name', 'kubernetes.pod.name', 'container.id'])
 
             if res[0] == False:
-                print 'Failed setting team grouping: ', res[1]
+                Logger.log('Failed setting team grouping: ' + res[1], 'error')
                 return False
 
             #
             # Add the dashboards
             #
-            print 'adding dashboards'
+            Logger.log('adding dashboards')
 
             res = teamclient.get_dashboards()
             if not res[0]:
-                print 'Error getting the dasboards list: ', res[1]
+                Logger.log('Error getting the dasboards list: ' + res[1], 'error')
                 break
             existing_dasboards = res[1]['dashboards']
 
@@ -220,35 +228,64 @@ class KubeObjParser(object):
                 if skip:
                     continue
 
-                print 'adding dasboard ' + d
-                res = teamclient.create_dashboard_from_view(d, d, None, True, {'engineTeam': team_name + d})
+                Logger.log('adding dasboard ' + d)
+                res = teamclient.create_dashboard_from_view(d, d, None, True, {'engineTeam': team_name + d, 'ownerUser': user})
                 if not res[0]:
-                    print 'Error creating dasboard: ', res[1]
+                    Logger.log('Error creating dasboard: ' + res[1], 'error')
 
             #
             # Add the notification recipients
             #
-            print 'adding notification recipients'
+            Logger.log('adding notification recipients')
             res = teamclient.create_email_notification_channel('Email Channel', recipients)
             if not res[0]:
                 if res[1][:20] != EXISTING_CHANNEL_ERR:
-                    print 'Error setting email recipient: ', res[1]
+                    Logger.log('Error setting email recipient: ' + res[1], 'error')
                     return False
 
             #
-            # Add the Alerts
+            # Add the Notification channels
             #
-            print 'adding alerts'
+            Logger.log('adding alerts')
 
             notify_channels = [{'type': 'EMAIL', 'emailRecipients': recipients}]
             res = self._customer_admin_sdclient.get_notification_ids(notify_channels)
             if not res[0]:
-                print "Could not get IDs and hence not creating the alert: " + res[1]
-                sys.exit(-1)
+                Logger.log("cannot create the email notification channel: " + res[1], 'error')
+                return False
             notification_channel_ids = res[1]
 
+            #
+            # Add the Alerts
+            #
+            res = teamclient.get_alerts()
+            if not res[0]:
+                Logger.log("cannot get user alerts: " + res[1], 'error')
+                return False
+
+            cur_alerts = res[1]['alerts']
+
             for a in alerts:
-                res = teamclient.create_alert(a.get('name', ''),  # Alert name.
+                aname = a.get('name', '')
+
+                #
+                # Check if this alert already exists
+                #
+                skip = False
+                for ca in cur_alerts:
+                    if ca['name'] == aname and 'annotations' in ca:
+                        skip = True
+                        break
+
+                if skip:
+                    #
+                    # Alert already exists, skip the creation
+                    #
+                    continue
+
+                Logger.log('adding alert %s' % aname)
+
+                res = teamclient.create_alert(aname,  # Alert name.
                     a.get('description', ''), # Alert description.
                     a.get('severity', 6), # Syslog-encoded severity. 6 means 'info'.
                     a.get('timespan', 60000000), # The alert will fire if the condition is met for at least 60 seconds.
@@ -257,9 +294,10 @@ class KubeObjParser(object):
                     a.get('segmentCondition', 'ANY'), # in case there is more than one tomcat process, this alert will fire when a single one of them crosses the 80% threshold.
                     a.get('filter', ''), # Filter. We want to receive a notification only if the name of the process meeting the condition is 'tomcat'.
                     notification_channel_ids,
-                    a.get('enabled', True))
+                    a.get('enabled', True),
+                    {'engineTeam': team_name + aname, 'ownerUser': user})
                 if not res[0]:
-                    print 'Error creating alert: ', res[1]
+                    Logger.log('Error creating alert: ' + res[1], 'error')
 
 ###############################################################################
 # This class parses the annotations of the kubernetes objects in a particular 
@@ -267,31 +305,57 @@ class KubeObjParser(object):
 # team configuration for each of the objects.
 ###############################################################################
 class KubeURLParser(object):
-    def __init__(self, type, customer_admin_sdclient, sysdig_superuser_token, sdc_url):
+    def __init__(self, type, customer_admin_sdclient, customer_id, sysdig_superuser_token, sdc_url):
         self._customer_admin_sdclient = customer_admin_sdclient
+        self._customer_id = customer_id
         self._sysdig_superuser_token = sysdig_superuser_token
         self._sdc_url = sdc_url
         self._type = type
+        self._md5s = {}
+        self._parser = KubeObjParser(self._type, self._customer_admin_sdclient, self._customer_id, self._sysdig_superuser_token, self._sdc_url)
 
     def parse(self, url):
-        try:
-            resp = requests.get(url)
-        except:
-            return False
-
+        '''
+        resp = requests.get(url)
         rdata = json.loads(resp.content)
+        '''
 
-        if 'items' in rdata:
-    #    if True:
-    #        with open('data.json', 'r') as outfile:
-    #            deployment = json.load(outfile)
-            for deployment in rdata['items']:
+#        if 'items' in rdata:
+        while not 'j' in locals():
+            j = 1
+            with open('data.json', 'r') as outfile:
+                deployment = json.load(outfile)
+#            for deployment in rdata['items']:
                 if 'annotations' in deployment['metadata'] and 'sysdigTeamMembers' in deployment['metadata']['annotations']:
-                    parser = KubeObjParser(self._type, self._customer_admin_sdclient, self._sysdig_superuser_token, self._sdc_url)
-                    parser.parse(deployment)
-                    print 'team added'
+                    #
+                    # Calculate the MD5 checksum of the whole annotations of 
+                    # this object
+                    #
+                    hash = hashlib.md5(str(deployment['metadata']['annotations'])).hexdigest()
 
-        #
-        # We cycled through all of the deployments. Wait 3 seconds before checking
-        # for changes
-        #
+                    #
+                    # If the MD5 of the annotations corresponds to the stored 
+                    # one, skip this object, otherwise process it
+                    #
+                    if deployment['metadata']['uid'] in self._md5s:
+                        if self._md5s[deployment['metadata']['uid']] == hash:
+                            continue
+                        else:
+                            Logger.log('detected changes in %s %s' % (self._type, deployment['metadata']['name']))
+                    else:
+                        Logger.log('discovered new %s %s' % (self._type, deployment['metadata']['name']))
+
+                    #
+                    # Store the hash
+                    #
+                    self._md5s[deployment['metadata']['uid']] = hash
+
+                    #
+                    # Parse the object and add/modify the sysdig cloud team accordingly
+                    #
+                    try:
+                        self._parser.parse(deployment)
+                    except:
+                        log(sys.exc_info()[1], 'error')
+                        traceback.print_exc()
+                        continue
