@@ -61,8 +61,9 @@ Currently, the following three types of Kubernetes objects can be annotated:
 ```
 
 ## Current Limitations
+
 1. The script doesn't make use of the Kubernetes watch API, so its scalability is very limited.
 2. The script doesn't support any kind of authentication or encryption when connecting to the Kubernetes API.
 3. Currently, the script requires the sysdig cloud admin token, which prevents it from being used by an end user. The reason for it is that the API doesn't offer any way for a customer admin to get the API token of another customer user or to impersonate another customer user.
 
-#1 and #2 can be solved by either using [this python library](https://github.com/kubernetes-incubator/client-python) or by embedding this script in the backend and offering it as a service. #3 will require product changes.
+Items #1 and #2 can be solved by either using [this python library](https://github.com/kubernetes-incubator/client-python) or by embedding this script in the backend and offering it as a service. #3 will require product changes.
