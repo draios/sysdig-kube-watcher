@@ -25,11 +25,11 @@ Currently, the following three types of Kubernetes objects can be annotated:
 - deployments
 - services
 
-### Supported annotations
+### Supported Annotations
 - **sysdigTeamMembers**: a comma separated list of Sysdig Cloud user email addresses. If a user corresponding to one of the email addresses already exists, it will be added to the new team. If it doesn't, the user will be created and an activation email will be sent to the email address.
 - **sysdigDashboards**: comma separated list of Explore view names that will be used as sources to create dasboards. The dasboards will be available to all of the users in the team and they will have the scope of the full source Kubernetes object. For example, if the object is a namespace, the dasboard will have the scope of the full namespace.
 - **sysdigAlertEmails**: comma separated list of email addresses that will receive the notifications for the alerts specified in the _sysdigAlerts_ section. 
-- **sysdigAlerts**: a string containing a JSON array of objects, each of which describes an alert to add to this team. The syntax of the alert objects is the same as the REST API one (XXX link). 
+- **sysdigAlerts**: a string containing a JSON array of objects, each of which describes an alert to add to this team. The syntax of the alert objects is the same as the REST API one see https://sysdig.gitbooks.io/sysdig-cloud-api/content/rest_api/alerts.html. 
 
 ### Example
 ```
@@ -61,3 +61,8 @@ Currently, the following three types of Kubernetes objects can be annotated:
 ```
 
 ## Current Limitations
+1. The script doesn't make use of the Kubernetes watch API, so its scalability is very limited.
+2. The script doesn't support any kind of authentication or encryption when connecting to the Kubernetes API.
+3. Currently, the script requires the sysdig cloud admin token, which prevents it from being used by an end user. The reason for it is that the API doesn't offer any way for a customer admin to get the API token of another customer user or to impersonate another customer user.
+
+#1 and #2 can be solved by either using [this python library](https://github.com/kubernetes-incubator/client-python) or by embedding this script in the backend and offering it as a service. #3 will require product changes.
