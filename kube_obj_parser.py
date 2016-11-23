@@ -138,7 +138,7 @@ class KubeObjParser(object):
                     Logger.log('Team editing failed: ' + res[1], 'error')
                     return False
         else:
-            Logger.log("Detected new %s %s, adding team" % (self._type, obj_name, team_name))
+            Logger.log("Detected new %s %s, adding team %s" % (self._type, obj_name, team_name))
 
             # Team doesn't exist. Try to create it.
             if self._type == 'deployment':
@@ -244,27 +244,28 @@ class KubeObjParser(object):
             # for the first user only to make things more efficient.
             #
             if j == 1:
-                #
-                # Add the notification recipients
-                #
                 Logger.log('adding notification recipients')
+
+                #
+                # Add the email notification channel
+                #
                 res = teamclient.create_email_notification_channel('Email Channel', recipients)
                 if not res[0]:
                     if res[1][:20] != EXISTING_CHANNEL_ERR:
                         Logger.log('Error setting email recipient: ' + res[1], 'error')
                         return False
 
-                #
-                # Add the Notification channels
-                #
-                Logger.log('adding alerts')
-
-                notify_channels = [{'type': 'EMAIL', 'emailRecipients': recipients}]
-                res = self._customer_admin_sdclient.get_notification_ids(notify_channels)
-                if not res[0]:
-                    Logger.log("cannot create the email notification channel: " + res[1], 'error')
-                    return False
-                notification_channel_ids = res[1]
+            #
+            # Get the notification channel ID to use for the alerts.
+            # Note: we should optimize this by making this call only if at 
+            # least one alert is created.
+            #
+            notify_channels = [{'type': 'EMAIL', 'emailRecipients': recipients}]
+            res = self._customer_admin_sdclient.get_notification_ids(notify_channels)
+            if not res[0]:
+                Logger.log("cannot create the email notification channel: " + res[1], 'error')
+                return False
+            notification_channel_ids = res[1]
 
             #
             # Add the Alerts
@@ -326,17 +327,15 @@ class KubeURLParser(object):
         self._parser = KubeObjParser(self._type, self._customer_admin_sdclient, self._customer_id, self._sysdig_superuser_token, self._sdc_url)
 
     def parse(self, url):
-        '''
         resp = requests.get(url)
         rdata = json.loads(resp.content)
-        '''
 
-#        if 'items' in rdata:
-        while not 'j' in locals():
-            j = 1
-            with open('data.json', 'r') as outfile:
-                deployment = json.load(outfile)
-#            for deployment in rdata['items']:
+#        while not 'j' in locals():
+#            j = 1
+#            with open('data.json', 'r') as outfile:
+#                deployment = json.load(outfile)
+        if 'items' in rdata:
+            for deployment in rdata['items']:
                 if 'annotations' in deployment['metadata'] and 'sysdigTeamMembers' in deployment['metadata']['annotations']:
                     #
                     # Calculate the MD5 checksum of the whole annotations of 
