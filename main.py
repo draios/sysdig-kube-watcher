@@ -49,7 +49,7 @@ while True:
         #
         # Parse the namespaces
         #
-#        urlparser_ns.parse(kube_url + '/api/v1/namespaces')
+        urlparser_ns.parse(kube_url + '/api/v1/namespaces')
 
         #
         # Parse the deployments
@@ -59,7 +59,7 @@ while True:
         #
         # Parse the services
         #
-#        urlparser_srvc.parse(kube_url + '/api/v1/services')
+        urlparser_srvc.parse(kube_url + '/api/v1/services')
     except:
         log(sys.exc_info()[1], 'error')
         traceback.print_exc()
