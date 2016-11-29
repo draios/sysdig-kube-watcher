@@ -14,7 +14,6 @@ def log(str, severity='info'):
 
 kube_url = sys.argv[1]
 customer_admin_token = sys.argv[2]
-sysdig_superuser_token = sys.argv[3]
 
 log("Script Starting")
 
@@ -35,9 +34,9 @@ customer_id = res[1]['user']['username']
 # Note: the parsers keep state, so we allocate them during startup and then we
 # use them in the main loop
 #
-urlparser_ns = KubeURLParser('namespace', ca_sdclient, customer_id, sysdig_superuser_token, SDC_URL)
-urlparser_depl = KubeURLParser('deployment', ca_sdclient, customer_id, sysdig_superuser_token, SDC_URL)
-urlparser_srvc = KubeURLParser('service', ca_sdclient, customer_id, sysdig_superuser_token, SDC_URL)
+urlparser_ns = KubeURLParser('namespace', ca_sdclient, customer_id, SDC_URL)
+urlparser_depl = KubeURLParser('deployment', ca_sdclient, customer_id, SDC_URL)
+urlparser_srvc = KubeURLParser('service', ca_sdclient, customer_id, SDC_URL)
 
 #
 # MAIN LOOP

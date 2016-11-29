@@ -6,7 +6,6 @@ import hashlib
 import traceback
 sys.path.insert(0, '../python-sdc-client')
 from sdcclient import SdcClient
-import metadata_fetcher
 import time
 from time import gmtime, strftime
 
@@ -25,10 +24,9 @@ class Logger(object):
 # deployment...) and applies the appropriate SDC team configuration
 ###############################################################################
 class KubeObjParser(object):
-    def __init__(self, type, customer_admin_sdclient, customer_id, sysdig_superuser_token, sdc_url):
+    def __init__(self, type, customer_admin_sdclient, customer_id, sdc_url):
         self._customer_admin_sdclient = customer_admin_sdclient
         self._customer_id = customer_id
-        self._sysdig_superuser_token = sysdig_superuser_token
         self._sdc_url = sdc_url
         self._type = type
         self._customer_id = customer_id
@@ -107,8 +105,8 @@ class KubeObjParser(object):
             Logger.log('Invalid JSON in the "alerts" field', 'error')
             return False
 
-        # XXX Clean this up
-#        res = self._customer_admin_sdclient.delete_team(team_name)
+        # XXX This is here for testing purposes only
+        # res = self._customer_admin_sdclient.delete_team(team_name)
 
         #
         # Check the existence of the team and create it if it doesn't exist
@@ -176,8 +174,7 @@ class KubeObjParser(object):
             #
             Logger.log('impersonating user ' + user)
 
-            ufetcher = metadata_fetcher.UsersFetcher(self._sysdig_superuser_token, self._sdc_url)
-            res = ufetcher.fetch_user_token(user, teamid)
+            res = self._customer_admin_sdclient.get_user_api_token(user, team_name)
             if res[0] == False:
                 Logger.log('Can\'t fetch token for user ' + user, 'error')
                 return False
@@ -317,14 +314,13 @@ class KubeObjParser(object):
 # team configuration for each of the objects.
 ###############################################################################
 class KubeURLParser(object):
-    def __init__(self, type, customer_admin_sdclient, customer_id, sysdig_superuser_token, sdc_url):
+    def __init__(self, type, customer_admin_sdclient, customer_id, sdc_url):
         self._customer_admin_sdclient = customer_admin_sdclient
         self._customer_id = customer_id
-        self._sysdig_superuser_token = sysdig_superuser_token
         self._sdc_url = sdc_url
         self._type = type
         self._md5s = {}
-        self._parser = KubeObjParser(self._type, self._customer_admin_sdclient, self._customer_id, self._sysdig_superuser_token, self._sdc_url)
+        self._parser = KubeObjParser(self._type, self._customer_admin_sdclient, self._customer_id, self._sdc_url)
 
     def parse(self, url):
         resp = requests.get(url)
