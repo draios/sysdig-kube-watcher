@@ -12,6 +12,7 @@ from time import gmtime, strftime
 TEAM_NOT_EXISTING_ERR = 'Could not find team'
 USER_NOT_FOUND_ERR = 'User not found'
 EXISTING_CHANNEL_ERR = 'A channel with name:'
+ALL_SYSDIG_ANNOTATIONS = [ 'sysdigTeamMembers', 'sysdigDashboards', 'sysdigAlertEmails', 'sysdigAlerts' ]
 
 class Logger(object):
     @staticmethod
@@ -39,10 +40,31 @@ class KubeObjParser(object):
         # TEAM CREATION
         ###################################################################
         obj_name = objdata['metadata']['name']
-        team_members = objdata['metadata']['annotations']['sysdigTeamMembers'].split(',')
-        trecipients = objdata['metadata']['annotations']['sysdigAlertEmails'].split(',')
-        tdashboards = objdata['metadata']['annotations']['sysdigDashboards'].split(',')
-        alertsj = objdata['metadata']['annotations']['sysdigAlerts']
+
+        try:
+            team_members = objdata['metadata']['annotations']['sysdigTeamMembers'].split(',')
+        except KeyError:
+            Logger.log('No annotation present for %s' % sys.exc_info()[1], 'info')
+            team_members = []
+
+        try:
+            trecipients = objdata['metadata']['annotations']['sysdigAlertEmails'].split(',')
+        except KeyError:
+            Logger.log('No annotation present for %s' % sys.exc_info()[1], 'info')
+            trecipients = []
+
+        try:
+            tdashboards = objdata['metadata']['annotations']['sysdigDashboards'].split(',')
+        except KeyError:
+            Logger.log('No annotation present for %s' % sys.exc_info()[1], 'info')
+            tdashboards = []
+
+        try:
+            alertsj = objdata['metadata']['annotations']['sysdigAlerts']
+        except KeyError:
+            Logger.log('No annotation present for %s' % sys.exc_info()[1], 'info')
+            alertsj = json.dumps('[]')
+
         if self._type == 'deployment' or self._type == 'service':
             ns_name = objdata['metadata']['namespace']
             team_name = "%s_%s_%s" % (self._type, ns_name, obj_name)
@@ -332,7 +354,7 @@ class KubeURLParser(object):
 #                deployment = json.load(outfile)
         if 'items' in rdata:
             for deployment in rdata['items']:
-                if 'annotations' in deployment['metadata'] and 'sysdigTeamMembers' in deployment['metadata']['annotations']:
+                if 'annotations' in deployment['metadata'] and any (sysdig_annotation in deployment['metadata']['annotations'] for sysdig_annotation in ALL_SYSDIG_ANNOTATIONS):
                     #
                     # Calculate the MD5 checksum of the whole annotations of 
                     # this object
