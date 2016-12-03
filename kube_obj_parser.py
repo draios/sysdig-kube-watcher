@@ -126,7 +126,7 @@ class KubeObjParser(object):
             newusers = []
 
             if teaminfo['users'] != uids:
-                Logger.log("Detected modified %s %s, editing team" % (self._type, obj_name, team_name))
+                Logger.log("Detected modified %s %s, editing team %s" % (self._type, obj_name, team_name))
                 for j in range(0, len(uids)):
                     if not uids[j] in teaminfo['users']:
                         newusers.append(users[j])
