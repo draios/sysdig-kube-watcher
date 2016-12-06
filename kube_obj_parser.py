@@ -248,7 +248,7 @@ class KubeObjParser(object):
                 #
                 # Add the email notification channel
                 #
-                res = teamclient.create_email_notification_channel('Email Channel', recipients)
+                res = teamclient.create_email_notification_channel(team_name, recipients)
                 if not res[0]:
                     if res[1][:20] != EXISTING_CHANNEL_ERR:
                         Logger.log('Error setting email recipient: ' + res[1], 'error')
@@ -259,7 +259,7 @@ class KubeObjParser(object):
             # Note: we should optimize this by making this call only if at 
             # least one alert is created.
             #
-            notify_channels = [{'type': 'EMAIL', 'emailRecipients': recipients}]
+            notify_channels = [{'type': 'EMAIL', 'name': team_name}]
             res = self._customer_admin_sdclient.get_notification_ids(notify_channels)
             if not res[0]:
                 Logger.log("cannot create the email notification channel: " + res[1], 'error')
