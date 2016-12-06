@@ -40,30 +40,10 @@ class KubeObjParser(object):
         # TEAM CREATION
         ###################################################################
         obj_name = objdata['metadata']['name']
-
-        try:
-            team_members = objdata['metadata']['annotations']['sysdigTeamMembers'].split(',')
-        except KeyError:
-            Logger.log('No annotation present for %s' % sys.exc_info()[1], 'info')
-            team_members = []
-
-        try:
-            trecipients = objdata['metadata']['annotations']['sysdigAlertEmails'].split(',')
-        except KeyError:
-            Logger.log('No annotation present for %s' % sys.exc_info()[1], 'info')
-            trecipients = []
-
-        try:
-            tdashboards = objdata['metadata']['annotations']['sysdigDashboards'].split(',')
-        except KeyError:
-            Logger.log('No annotation present for %s' % sys.exc_info()[1], 'info')
-            tdashboards = []
-
-        try:
-            alertsj = objdata['metadata']['annotations']['sysdigAlerts']
-        except KeyError:
-            Logger.log('No annotation present for %s' % sys.exc_info()[1], 'info')
-            alertsj = json.dumps('[]')
+        team_members = objdata['metadata']['annotations'].get('sysdigTeamMembers', '').split(',')
+        trecipients = objdata['metadata']['annotations'].get('sysdigAlertEmails', '').split(',')
+        tdashboards = objdata['metadata']['annotations'].get('sysdigDashboards', '').split(',')
+        alertsj = objdata['metadata']['annotations'].get('sysdigAlerts', json.dumps('[]'))
 
         if self._type == 'deployment' or self._type == 'service':
             ns_name = objdata['metadata']['namespace']
