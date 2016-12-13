@@ -25,10 +25,11 @@ class Logger(object):
 # deployment...) and applies the appropriate SDC team configuration
 ###############################################################################
 class KubeObjParser(object):
-    def __init__(self, type, customer_admin_sdclient, customer_id, sdc_url):
+    def __init__(self, type, customer_admin_sdclient, customer_id, sdc_url, team_prefix):
         self._customer_admin_sdclient = customer_admin_sdclient
         self._customer_id = customer_id
         self._sdc_url = sdc_url
+        self._team_prefix = team_prefix
         self._type = type
         self._customer_id = customer_id
 
@@ -47,10 +48,10 @@ class KubeObjParser(object):
 
         if self._type == 'deployment' or self._type == 'service':
             ns_name = objdata['metadata']['namespace']
-            team_name = "%s_%s_%s" % (self._type, ns_name, obj_name)
+            team_name = "%s%s_%s_%s" % (self._team_prefix, self._type, ns_name, obj_name)
         elif self._type == 'namespace':
             ns_name = objdata['metadata']['name']
-            team_name = "%s_%s" % (self._type, ns_name)
+            team_name = "%s%s_%s" % (self._team_prefix, self._type, ns_name)
         else:
             Logger.log('unrecognized type argument', 'error')
             return False
@@ -316,13 +317,14 @@ class KubeObjParser(object):
 # team configuration for each of the objects.
 ###############################################################################
 class KubeURLParser(object):
-    def __init__(self, type, customer_admin_sdclient, customer_id, sdc_url):
+    def __init__(self, type, customer_admin_sdclient, customer_id, sdc_url, team_prefix):
         self._customer_admin_sdclient = customer_admin_sdclient
         self._customer_id = customer_id
         self._sdc_url = sdc_url
+        self._team_prefix = team_prefix
         self._type = type
         self._md5s = {}
-        self._parser = KubeObjParser(self._type, self._customer_admin_sdclient, self._customer_id, self._sdc_url)
+        self._parser = KubeObjParser(self._type, self._customer_admin_sdclient, self._customer_id, self._sdc_url, self._team_prefix)
 
     def parse(self, url):
         resp = requests.get(url)

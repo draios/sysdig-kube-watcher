@@ -14,26 +14,28 @@ def log(str, severity='info'):
 log("Kubewatcher Starting")
 
 SDC_URL = os.getenv('SDC_URL', 'https://app.sysdigcloud.com')
-ADMIN_TOKEN = os.getenv('ADMIN_TOKEN')
+SDC_ADMIN_TOKEN = os.getenv('SDC_ADMIN_TOKEN')
+DEFAULT_KUBE_URL = 'http://localhost:8080'
+DEFAULT_TEAM_PREFIX = ''
 
-if not ADMIN_TOKEN:
-    log('Did not find API Token for an Admin user at env variable "ADMIN_TOKEN". Exiting.', 'error')
+if not SDC_ADMIN_TOKEN:
+    log('Did not find API Token for an Admin user at env variable "SDC_ADMIN_TOKEN". Exiting.', 'error')
     sys.exit(1)
     
-kube_url = os.getenv('KUBE_URL')
+kube_url = os.getenv('KUBE_URL', 'http://localhost:8080')
+team_prefix = os.getenv('TEAM_PREFIX', DEFAULT_TEAM_PREFIX)
 
 if not kube_url:
-    log('Did not find Kubernetes API server URL at env variable "KUBE_URL". Exiting.', 'error')
-    sys.exit(1)
+    log('Did not find Kubernetes API server URL at env variable "KUBE_URL". Trying ' + DEFAULT_KUBE_URL, 'info')
 
 #
 # Instantiate the customer admin SDC client
 #
-ca_sdclient = SdcClient(ADMIN_TOKEN, SDC_URL)
+ca_sdclient = SdcClient(SDC_ADMIN_TOKEN, SDC_URL)
 
 res = ca_sdclient.get_user_info()
 if res[0] == False:
-    Logger.log('can\'t retrieve user info: ' + res[1])
+    Logger.log('Can\'t retrieve info for Admin user: ' + res[1] + '. Exiting.', 'error')
     sys.exit(1)
 
 customer_id = res[1]['user']['username']
@@ -43,9 +45,9 @@ customer_id = res[1]['user']['username']
 # Note: the parsers keep state, so we allocate them during startup and then we
 # use them in the main loop
 #
-urlparser_ns = KubeURLParser('namespace', ca_sdclient, customer_id, SDC_URL)
-urlparser_depl = KubeURLParser('deployment', ca_sdclient, customer_id, SDC_URL)
-urlparser_srvc = KubeURLParser('service', ca_sdclient, customer_id, SDC_URL)
+urlparser_ns = KubeURLParser('namespace', ca_sdclient, customer_id, SDC_URL, team_prefix)
+urlparser_depl = KubeURLParser('deployment', ca_sdclient, customer_id, SDC_URL, team_prefix)
+urlparser_srvc = KubeURLParser('service', ca_sdclient, customer_id, SDC_URL, team_prefix)
 
 #
 # MAIN LOOP
