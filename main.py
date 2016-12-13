@@ -1,3 +1,4 @@
+import os
 import requests
 import json
 import sys
@@ -7,25 +8,33 @@ sys.path.insert(0, '../python-sdc-client')
 from sdcclient import SdcClient
 from kube_obj_parser import KubeObjParser, KubeURLParser, Logger
 
-SDC_URL = 'https://app-staging2.sysdigcloud.com'
-
 def log(str, severity='info'):
     Logger.log(str, severity)
 
-kube_url = sys.argv[1]
-customer_admin_token = sys.argv[2]
+log("Kubewatcher Starting")
 
-log("Script Starting")
+SDC_URL = os.getenv('SDC_URL', 'https://app.sysdigcloud.com')
+ADMIN_TOKEN = os.getenv('ADMIN_TOKEN')
+
+if not ADMIN_TOKEN:
+    log('Did not find API Token for an Admin user at env variable "ADMIN_TOKEN". Exiting.', 'error')
+    sys.exit(1)
+    
+kube_url = os.getenv('KUBE_URL')
+
+if not kube_url:
+    log('Did not find Kubernetes API server URL at env variable "KUBE_URL". Exiting.', 'error')
+    sys.exit(1)
 
 #
 # Instantiate the customer admin SDC client
 #
-ca_sdclient = SdcClient(customer_admin_token, SDC_URL)
+ca_sdclient = SdcClient(ADMIN_TOKEN, SDC_URL)
 
 res = ca_sdclient.get_user_info()
 if res[0] == False:
     Logger.log('can\'t retrieve user info: ' + res[1])
-    sys.exit(0)
+    sys.exit(1)
 
 customer_id = res[1]['user']['username']
 
