@@ -10,6 +10,7 @@ from kube_obj_parser import KubeObjParser, KubeURLParser, Logger
 
 def log(str, severity='info'):
     Logger.log(str, severity)
+    sys.stdout.flush()
 
 log("Kubewatcher Starting")
 
@@ -22,11 +23,12 @@ if not SDC_ADMIN_TOKEN:
     log('Did not find API Token for an Admin user at env variable "SDC_ADMIN_TOKEN". Exiting.', 'error')
     sys.exit(1)
     
-kube_url = os.getenv('KUBE_URL', 'http://localhost:8080')
+kube_url = os.getenv('KUBE_URL')
 team_prefix = os.getenv('TEAM_PREFIX', DEFAULT_TEAM_PREFIX)
 
 if not kube_url:
-    log('Did not find Kubernetes API server URL at env variable "KUBE_URL". Trying ' + DEFAULT_KUBE_URL, 'info')
+    log('Did not find Kubernetes API server URL at env variable "KUBE_URL". Trying ' + kube_url, 'info')
+    kube_url = DEFAULT_KUBE_URL
 
 #
 # Instantiate the customer admin SDC client
