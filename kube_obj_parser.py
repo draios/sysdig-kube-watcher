@@ -31,7 +31,6 @@ class KubeObjParser(object):
         self._sdc_url = sdc_url
         self._team_prefix = team_prefix
         self._type = type
-        self._customer_id = customer_id
 
     def parse(self, objdata):
         uids = []
@@ -161,12 +160,96 @@ class KubeObjParser(object):
         ###################################################################
 
         #
+        # If we have alerts, create a notification channel and point the
+        # alerts at it.
+        #
+        if alerts:
+
+            Logger.log('adding notification recipients')
+
+            #
+            # These steps can be done as the admin user since notification
+            # channels have global scope and alerts has team scope, and admin
+            # users are members of all teams.
+            #
+            res = self._customer_admin_sdclient.get_user_api_token(self._customer_id, team_name)
+            if res[0] == False:
+                Logger.log('Can\'t fetch token for user ' + user, 'error')
+                return False
+            else:
+                utoken_t = res[1]
+
+            teamclient = SdcClient(utoken_t, self._sdc_url)
+
+            #
+            # Add the email notification channel. This will silently fail
+            # if it has already been created.
+            #
+            res = teamclient.create_email_notification_channel(team_name, recipients)
+            if not res[0]:
+                if res[1][:20] != EXISTING_CHANNEL_ERR:
+                    Logger.log('Error setting email recipient: ' + res[1], 'error')
+                    return False
+
+            #
+            # Get the notification channel ID to use for the alerts.
+            # (This is where I should update the list of recipients using a new API call.)
+            #
+            notify_channels = [{'type': 'EMAIL', 'name': team_name}]
+            res = teamclient.get_notification_ids(notify_channels)
+            if not res[0]:
+                Logger.log("cannot create the email notification channel: " + res[1], 'error')
+                return False
+            notification_channel_ids = res[1]
+
+            #
+            # Add the Alerts
+            #
+            res = teamclient.get_alerts()
+            if not res[0]:
+                Logger.log("cannot get user alerts: " + res[1], 'error')
+                return False
+
+            cur_alerts = res[1]['alerts']
+
+            for a in alerts:
+                aname = a.get('name', '')
+
+                #
+                # Check if this alert already exists
+                #
+                skip = False
+                for ca in cur_alerts:
+                    if ca['name'] == aname and 'annotations' in ca:
+                        skip = True
+                        break
+
+                if skip:
+                    #
+                    # Alert already exists, skip the creation
+                    #
+                    continue
+
+                Logger.log('adding alert %s' % aname)
+
+                res = teamclient.create_alert(aname,  # Alert name.
+                    a.get('description', ''), # Alert description.
+                    a.get('severity', 6), # Syslog-encoded severity. 6 means 'info'.
+                    a.get('timespan', 60000000), # The alert will fire if the condition is met for at least 60 seconds.
+                    a.get('condition', ''), # The condition.
+                    a.get('segmentBy', []), # Segmentation. We want to check this metric for every process on every machine.
+                    a.get('segmentCondition', 'ANY'), # in case there is more than one tomcat process, this alert will fire when a single one of them crosses the 80% threshold.
+                    a.get('filter', ''), # Filter. We want to receive a notification only if the name of the process meeting the condition is 'tomcat'.
+                    notification_channel_ids,
+                    a.get('enabled', True),
+                    {'engineTeam': team_name + aname})
+                if not res[0]:
+                    Logger.log('Error creating alert: ' + res[1], 'error')
+
+        #
         # Go through the list of new users and set them up for this team
         #
-        j = 0
-
         for user in users:
-            j = j + 1
 
             #
             # First of all, we need to impersonate the users in this team
@@ -238,78 +321,6 @@ class KubeObjParser(object):
                 if not res[0]:
                     Logger.log('Error creating dasboard: ' + res[1], 'error')
 
-            #
-            # Configure notifications.This will just silently fail if the 
-            # notfication channel has already been created, but we still do it
-            # for the first user only to make things more efficient.
-            #
-            if j == 1:
-                Logger.log('adding notification recipients')
-
-                #
-                # Add the email notification channel
-                #
-                res = teamclient.create_email_notification_channel(team_name, recipients)
-                if not res[0]:
-                    if res[1][:20] != EXISTING_CHANNEL_ERR:
-                        Logger.log('Error setting email recipient: ' + res[1], 'error')
-                        return False
-
-            #
-            # Get the notification channel ID to use for the alerts.
-            # Note: we should optimize this by making this call only if at 
-            # least one alert is created.
-            #
-            notify_channels = [{'type': 'EMAIL', 'name': team_name}]
-            res = self._customer_admin_sdclient.get_notification_ids(notify_channels)
-            if not res[0]:
-                Logger.log("cannot create the email notification channel: " + res[1], 'error')
-                return False
-            notification_channel_ids = res[1]
-
-            #
-            # Add the Alerts
-            #
-            res = teamclient.get_alerts()
-            if not res[0]:
-                Logger.log("cannot get user alerts: " + res[1], 'error')
-                return False
-
-            cur_alerts = res[1]['alerts']
-
-            for a in alerts:
-                aname = a.get('name', '')
-
-                #
-                # Check if this alert already exists
-                #
-                skip = False
-                for ca in cur_alerts:
-                    if ca['name'] == aname and 'annotations' in ca:
-                        skip = True
-                        break
-
-                if skip:
-                    #
-                    # Alert already exists, skip the creation
-                    #
-                    continue
-
-                Logger.log('adding alert %s' % aname)
-
-                res = teamclient.create_alert(aname,  # Alert name.
-                    a.get('description', ''), # Alert description.
-                    a.get('severity', 6), # Syslog-encoded severity. 6 means 'info'.
-                    a.get('timespan', 60000000), # The alert will fire if the condition is met for at least 60 seconds.
-                    a.get('condition', ''), # The condition.
-                    a.get('segmentBy', []), # Segmentation. We want to check this metric for every process on every machine.
-                    a.get('segmentCondition', 'ANY'), # in case there is more than one tomcat process, this alert will fire when a single one of them crosses the 80% threshold.
-                    a.get('filter', ''), # Filter. We want to receive a notification only if the name of the process meeting the condition is 'tomcat'.
-                    notification_channel_ids,
-                    a.get('enabled', True),
-                    {'engineTeam': team_name + aname, 'ownerUser': user})
-                if not res[0]:
-                    Logger.log('Error creating alert: ' + res[1], 'error')
 
 ###############################################################################
 # This class parses the annotations of the kubernetes objects in a particular 
