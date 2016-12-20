@@ -1,4 +1,5 @@
 import os
+import copy
 import json
 import requests
 import sys
@@ -193,7 +194,6 @@ class KubeObjParser(object):
 
             #
             # Get the notification channel ID to use for the alerts.
-            # (This is where I should update the list of recipients using a new API call.)
             #
             notify_channels = [{'type': 'EMAIL', 'name': team_name}]
             res = teamclient.get_notification_ids(notify_channels)
@@ -201,6 +201,25 @@ class KubeObjParser(object):
                 Logger.log("cannot create the email notification channel: " + res[1], 'error')
                 return False
             notification_channel_ids = res[1]
+
+            #
+            # Make sure the members of the email notification channel are current.
+            # Since we searched for the channel by name, there should only be one. But
+            # since get_notification_ids() returns a list, treat it as such.
+            #
+            for channel_id in notification_channel_ids:
+                res = teamclient.get_notification_channel(channel_id)
+                if not res[0]:
+                    Logger.log("cannot find the email notification channel: " + res[1], 'error')
+                    return False
+                c = res[1]
+                current_recip = c['options']['emailRecipients']
+                if set(current_recip) == set(recipients):
+                    Logger.log('email recipients have not changed since last update', 'info')
+                else:
+                    Logger.log('email recipients have changed - updating', 'info')
+                    c['options']['emailRecipients'] = copy.deepcopy(recipients)
+                    teamclient.update_notification_channel(c)
 
             #
             # Add the Alerts
