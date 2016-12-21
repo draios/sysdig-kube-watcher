@@ -44,7 +44,7 @@ class KubeObjParser(object):
         team_members = objdata['metadata']['annotations'].get('sysdigTeamMembers', '').split(',')
         trecipients = objdata['metadata']['annotations'].get('sysdigAlertEmails', '').split(',')
         tdashboards = objdata['metadata']['annotations'].get('sysdigDashboards', '').split(',')
-        alertsj = objdata['metadata']['annotations'].get('sysdigAlerts', json.dumps('[]'))
+        alertsj = objdata['metadata']['annotations'].get('sysdigAlerts', json.dumps([]))
 
         if self._type == 'deployment' or self._type == 'service':
             ns_name = objdata['metadata']['namespace']
