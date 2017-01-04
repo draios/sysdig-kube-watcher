@@ -1,40 +1,67 @@
 ## sysdig-kube-watcher
 This Python script provides a way to automatically synchronize your Sysdig Cloud Teams settings with details from your Kubernetes infrastructure.
 
-The script acts as a bridge between the Kubernetes API and the Sysdig Cloud Teams framework. It continuously polls the Kubernetes API for changes and reflects the changes into the Sysdig Cloud user's Teams structure. By using annotations, the user can decorate Kubernetes namespaces, deployments, and services with configuration that will be recognized by the script. As the annotations appear or change, sysdig-kube-watcher understands these decorations, tracks their changes, and applies them to Sysdig Cloud by using the Sysdig Cloud Python API.
+The script acts as a bridge between the Kubernetes API and the Sysdig Cloud Teams framework. It continuously polls the Kubernetes API for changes and reflects the changes into the Sysdig Cloud user's Teams structure. By using annotations, the user can decorate Kubernetes namespaces, deployments, and services with configuration that will be recognized by the script. As the annotations appear or change, sysdig-kube-watcher understands these decorations, tracks their changes, and applies them to Sysdig Cloud by using the [Sysdig Cloud Python API](https://github.com/draios/python-sdc-client).
 
-Note that you can dynamically change the annotations of a Kubernetes object and this script will be able to apply only the differences to the Team.
+## Running as a Kubernetes Deployment (recommended)
 
-## Installation
+Modify the `kubewatcher.yaml` file provided in this repository to reflect your environment, then install with:
 
-Make sure to have the [python-sdc-client](https://github.com/draios/python-sdc-client) library installed in the system with pip or its source tree in the same directory as sysdig-kube-watcher.
+`# kubectl create -f kubewatcher.yaml`
 
-## Usage
+Configurable parameters in `kubewatcher.yaml`:
 
-```python main.py <kube_url> <customer_admin_token>```
+* `SDC_ADMIN_TOKEN` - The Sysdig Cloud API Token of an admin user in your environment. This is needed because only admin users are capable of creating and configuring Teams.
+* `SDC_URL` (optional) - The URL you use to access Sysdig Cloud. The default is set for SaaS users, but will need to be changed if you have an [on-premise install](https://support.sysdigcloud.com/hc/en-us/articles/206519903-On-Premises-Installation-Guide).
+* `KUBE_URL` - URL for accessing the REST API for your Kubernetes appserver. Kubewatcher currently supports only [direct access over HTTP](http://kubernetes.io/docs/user-guide/accessing-the-cluster/#directly-accessing-the-rest-api).
+* `TEAM_PREFIX` (optional) - A string that will be prepended to the names of Teams and Notification Channels automatically created by Kubewatcher. This will make them easier to identify in the Sysdig Cloud UI.
 
-where:
-- **kube_url** is the URL where the Kubernetes API can be found. E.g. _http:://127.0.0.1:8080_.
-- **customer_admin_token** is the Sysdig Cloud API token of one of your admin users. This is needed because only admin users are capable of creating and configuring Teams.
+## Running Manually (not recommended)
 
-## Annotating Kubernetes Objects
+Make sure to have the [python-sdc-client](https://github.com/draios/python-sdc-client) library installed in the system with `pip` or its source tree in the same directory as `sysdig-kube-watcher`.
 
-Currently, the following three types of Kubernetes objects can be annotated:
-- namespaces
-- deployments
-- services
+```
+[root]/
+  sysdig-kube-watcher/
+  python-sdc-client/
+```
+
+Use environment variables for the same settings described in the previous section when starting the script.
+
+```
+SDC_ADMIN_TOKEN="abcdef01-2345-6789-abcd-ef0123456789" \
+SDC_URL="https://app.sysdigcloud.com" \
+KUBE_URL="http://10.0.2.15:8080" \
+TEAM_PREFIX="KW-" \
+python kubewatcher.py
+```
 
 ### Supported Annotations
-- **sysdigTeamMembers**: a comma separated list of Sysdig Cloud user email addresses. If a user corresponding to one of the email addresses already exists, it will be added to the new Team. If it doesn't, the user will be created and an activation email will be sent to the email address.
-- **sysdigDashboards**: comma separated list of Explore view names that will be used as sources to create dashboards. The dashboards will be available to all of the users in the Team and they will have the scope of the full source Kubernetes object. For example, if the object is a namespace, the dashboard will have the scope of the full namespace.
-- **sysdigAlertEmails**: comma separated list of email addresses that will receive the notifications for the alerts specified in the _sysdigAlerts_ section. 
-- **sysdigAlerts**: a string containing a JSON array of objects, each of which describes an alert to add to this Team. The syntax of the alert objects is the same as used with the REST API (see https://sysdig.gitbooks.io/sysdig-cloud-api/content/rest_api/alerts.html).
+
+Currently, the following three types of Kubernetes objects can be annotated:
+- Namespaces
+- Deployments
+- Services
+
+The following annotations are recognized by Kubewatcher:
+
+- **sysdigTeamMembers**: A comma-separated list of Sysdig Cloud user email addresses. If a user corresponding to one of the email addresses already exists, it will be added to the new Team. If it doesn't, the user will be created and an activation email will be sent to the email address.
+- **sysdigDashboards**: A comma-separated list of Explore view names that will be used as sources to create dashboards. The dashboards will be available to all of the users in the Team and they will have the scope of the full source Kubernetes object that was annotated. For example, if the object is a namespace, the dashboard will have the scope of the full namespace.
+- **sysdigAlertEmails**: A comma-separated list of email addresses that will receive the notifications for the alerts specified in the _sysdigAlerts_ section. 
+- **sysdigAlerts**: A string containing a JSON array of objects, each of which describes an alert to add to this Team. The syntax of the alert objects is the same as used with the REST API (see https://sysdig.gitbooks.io/sysdig-cloud-api/content/rest_api/alerts.html).
 
 ### Example
+
+Assume we have an existing Kubernetes deployment `hello-world` and we edit its configuration.
+
+`# kubectl edit deployment hello-world`
+
+Now we the following under `metadata:` / `annotations:`
+
 ```
-    sysdigTeamMembers: demo-kube@draios.com, ld+133@degio.org
+    sysdigTeamMembers: mary@example.com, joe@example.com
     sysdigDashboards: Service Overview, MySQL/PostgreSQL
-    sysdigAlertEmails: ld@sysdig.com, devs@sysdig.com
+    sysdigAlertEmails: sleepless@example.com
     sysdigAlerts: | 
      [ 
        {
@@ -58,9 +85,39 @@ Currently, the following three types of Kubernetes objects can be annotated:
       ]
 ```
 
+If we watch the Kubewatcher log as the edits are saved, we can observe the changes being made to Sysdig Cloud via the API. The script polls the Kubernetes API every two seconds and makes changes immediately.
+
+
+```
+2017-01-04 19:53:44 - info - Reading the Kubernetes API
+2017-01-04 19:53:46 - info - Reading the Kubernetes API
+2017-01-04 19:53:48 - info - Reading the Kubernetes API
+2017-01-04 19:53:48 - info - discovered new deployment hello-world
+2017-01-04 19:53:49 - info - Detected new deployment hello-world, adding team KW-deployment_default_hello-world
+2017-01-04 19:53:50 - info - adding notification recipients
+2017-01-04 19:53:51 - info - email recipients have not changed since last update
+2017-01-04 19:53:51 - info - adding alert Slow Response Time
+2017-01-04 19:53:52 - info - adding alert High pod CPU
+2017-01-04 19:53:52 - info - impersonating user mary@example.com
+2017-01-04 19:53:53 - info - waiting for activation of user mary@example.com
+2017-01-04 19:53:53 - info - setting grouping
+2017-01-04 19:53:53 - info - adding dasboard Service Overview
+2017-01-04 19:53:54 - info - adding dasboard MySQL/PostgreSQL
+2017-01-04 19:53:55 - info - impersonating user joe@example.com
+2017-01-04 19:53:56 - info - waiting for activation of user joe@example.com
+2017-01-04 19:53:56 - info - setting grouping
+2017-01-04 19:53:59 - info - Reading the Kubernetes API
+2017-01-04 19:54:01 - info - Reading the Kubernetes API
+2017-01-04 19:54:03 - info - Reading the Kubernetes API
+```
+
+## Configuration Changes
+
+Changes to the Team membership (**sysdigTeamMembers**) and Notification Channels (**sysdigAlertEmails**) always _replace_ any existing configuration. If you remove an email address in the annotations for the Kubernetes object, it will be removed in the corresponding Sysdig Cloud setting. As a result, making direct changes to these settings in the Sysdig Cloud UI is not recommended, since any future change to the Kubernetes object annotations may revert your change. You should always make these configuration changes via the annotations in Kubernetes. The use of the `TEAM_PREFIX` setting may help your users identify these Kubewatcher-created items and hence know not to edit them via the Sysdig Cloud UI.
+
+Changes to the dashboards and alerts (triggered by **sysdigDashboards** and **sysdigAlerts**) will only ever _add configuration_ to Sysdig Cloud. Previously-added dashboards and alerts are never modified or deleted by subsequent updates from Kubewatcher. This is to prevent any changes by users from being reverted. If you want to delete a dashboard or alert that was previously created by Kubewatcher, delete it via the Sysdig Cloud UI and then delete it from the annotations for the corresponding Kubernetes object.
+
 ## Current Limitations
 
-1. The script doesn't make use of the Kubernetes watch API, so its scalability is very limited.
+1. The script currently polls the Kubernetes API, which does not scale well. An enhancement that could address this would use the [watch](https://github.com/kubernetes-incubator/client-python) feature of the Kubernetes API.
 2. The script doesn't support any kind of authentication or encryption when connecting to the Kubernetes API.
-
-These items can be solved by either using [this Python library](https://github.com/kubernetes-incubator/client-python) or by embedding this script in the backend and offering it as a service.
