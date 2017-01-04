@@ -1,0 +1,23 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: kubewatcher-deployment
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: kubewatcher
+    spec:
+      containers:
+      - name: kubewatcher
+        image: kubewatcher:v0.1
+        env:
+        - name: SDC_ADMIN_TOKEN
+          value: abcdef01-2345-6789-abcd-ef0123456789
+        - name: SDC_URL
+          value: https://app.sysdigcloud.com
+        - name: KUBE_URL
+          value: http://10.0.2.15:8080
+        - name: TEAM_PREFIX
+          value: KW-
