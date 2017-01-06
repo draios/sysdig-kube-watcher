@@ -14,30 +14,33 @@ def log(str, severity='info'):
 
 log("Kubewatcher Starting")
 
-SDC_URL = os.getenv('SDC_URL', 'https://app.sysdigcloud.com')
-SDC_ADMIN_TOKEN = os.getenv('SDC_ADMIN_TOKEN')
-DEFAULT_KUBE_URL = 'http://localhost:8080'
-DEFAULT_TEAM_PREFIX = ''
+DEFAULT_SDC_URL = 'https://app.sysdigcloud.com'
+SDC_URL = os.getenv('SDC_URL')
+if not SDC_URL:
+    log('No SDC_URL specified. Defaulting to ' + DEFAULT_SDC_URL + '.', 'info')
+    os.environ['SDC_URL'] = DEFAULT_SDC_URL
 
+SDC_ADMIN_TOKEN = os.getenv('SDC_ADMIN_TOKEN')
 if not SDC_ADMIN_TOKEN:
     log('Did not find API Token for an Admin user at env variable "SDC_ADMIN_TOKEN". Exiting.', 'error')
     sys.exit(1)
     
-kube_url = os.getenv('KUBE_URL')
+DEFAULT_TEAM_PREFIX = ''
 team_prefix = os.getenv('TEAM_PREFIX', DEFAULT_TEAM_PREFIX)
 
+kube_url = os.getenv('KUBE_URL')
 if not kube_url:
-    kube_url = DEFAULT_KUBE_URL
-    log('Did not find Kubernetes API server URL at env variable "KUBE_URL". Trying ' + kube_url, 'info')
+    log('Did not find Kubernetes API server URL at env variable "KUBE_URL". Will attempt to autodiscover.' 'info')
 
 #
 # Instantiate the customer admin SDC client
 #
+print('SDC_URL = ' + SDC_URL)
 ca_sdclient = SdcClient(SDC_ADMIN_TOKEN, SDC_URL)
 
 res = ca_sdclient.get_user_info()
 if res[0] == False:
-    Logger.log('Can\'t retrieve info for Admin user: ' + res[1] + '. Exiting.', 'error')
+    Logger.log('Can\'t retrieve info for Sysdig Cloud Admin user: ' + res[1] + '. Exiting.', 'error')
     sys.exit(1)
 
 customer_id = res[1]['user']['username']
@@ -61,17 +64,17 @@ while True:
         #
         # Parse the namespaces
         #
-        urlparser_ns.parse(kube_url + '/api/v1/namespaces')
+        urlparser_ns.parse(kube_url, '/api/v1/namespaces')
 
         #
         # Parse the deployments
         #
-        urlparser_depl.parse(kube_url + '/apis/extensions/v1beta1/deployments')
+        urlparser_depl.parse(kube_url, '/apis/extensions/v1beta1/deployments')
 
         #
         # Parse the services
         #
-        urlparser_srvc.parse(kube_url + '/api/v1/services')
+        urlparser_srvc.parse(kube_url, '/api/v1/services')
     except:
         log(sys.exc_info()[1], 'error')
         traceback.print_exc()
