@@ -28,8 +28,8 @@ if not SDC_ADMIN_TOKEN:
 DEFAULT_TEAM_PREFIX = ''
 team_prefix = os.getenv('TEAM_PREFIX', DEFAULT_TEAM_PREFIX)
 
-kube_url = os.getenv('KUBE_URL')
-if not kube_url:
+KUBE_URL = os.getenv('KUBE_URL')
+if not KUBE_URL:
     log('Did not find Kubernetes API server URL at env variable "KUBE_URL". Will attempt to autodiscover.' 'info')
 
 #
@@ -64,17 +64,17 @@ while True:
         #
         # Parse the namespaces
         #
-        urlparser_ns.parse(kube_url, '/api/v1/namespaces')
+        urlparser_ns.parse(KUBE_URL, '/api/v1/namespaces')
 
         #
         # Parse the deployments
         #
-        urlparser_depl.parse(kube_url, '/apis/extensions/v1beta1/deployments')
+        urlparser_depl.parse(KUBE_URL, '/apis/extensions/v1beta1/deployments')
 
         #
         # Parse the services
         #
-        urlparser_srvc.parse(kube_url, '/api/v1/services')
+        urlparser_srvc.parse(KUBE_URL, '/api/v1/services')
     except:
         log(sys.exc_info()[1], 'error')
         traceback.print_exc()
