@@ -18,12 +18,12 @@ Configurable parameters in `kubewatcher.yaml`:
 
 ## Running Manually (not recommended)
 
-Make sure to have the [python-sdc-client](https://github.com/draios/python-sdc-client) library installed in the system with `pip` or its source tree in the same directory as `sysdig-kube-watcher`.
+Clone this repository and ensure all requirements are installed (currently [python-sdc-client](https://github.com/draios/python-sdc-client)).
 
 ```
-[root]/
-  sysdig-kube-watcher/
-  python-sdc-client/
+# git clone https://github.com/draios/sysdig-kube-watcher.git
+# cd sysdig-kube-watcher
+# pip install -r requirements.txt
 ```
 
 Use environment variables for the same settings described in the previous section when starting the script.

@@ -4,7 +4,6 @@ import json
 import sys
 import time
 import traceback
-sys.path.insert(0, '../python-sdc-client')
 from sdcclient import SdcClient
 from kube_obj_parser import KubeObjParser, KubeURLParser, Logger
 
