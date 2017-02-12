@@ -11,7 +11,7 @@ spec:
     spec:
       containers:
       - name: kubewatcher
-        image: kubewatcher:0.1.0
+        image: sysdig/kubewatcher:0.1.0
         env:
         - name: SDC_ADMIN_TOKEN
           value: abcdef01-2345-6789-abcd-ef0123456789
