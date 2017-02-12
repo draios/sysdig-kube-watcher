@@ -29,12 +29,12 @@ team_prefix = os.getenv('TEAM_PREFIX', DEFAULT_TEAM_PREFIX)
 
 KUBE_URL = os.getenv('KUBE_URL')
 if not KUBE_URL:
-    log('Did not find Kubernetes API server URL at env variable "KUBE_URL". Will attempt to autodiscover.' 'info')
+    log('Did not find Kubernetes API server URL at env variable "KUBE_URL". Will attempt to autodiscover.', 'info')
 
 #
 # Instantiate the customer admin SDC client
 #
-print('SDC_URL = ' + SDC_URL)
+log('SDC_URL = ' + SDC_URL, 'info')
 ca_sdclient = SdcClient(SDC_ADMIN_TOKEN, SDC_URL)
 
 res = ca_sdclient.get_user_info()
