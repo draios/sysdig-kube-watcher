@@ -1,5 +1,5 @@
 ## sysdig-kube-watcher
-This Python script provides a way to automatically synchronize your Sysdig Cloud Teams settings with details from your Kubernetes infrastructure.
+This Python script provides a way to automatically synchronize your Sysdig Cloud [Teams](https://support.sysdigcloud.com/hc/en-us/articles/115000274683) settings with details from your Kubernetes infrastructure.
 
 The script acts as a bridge between the Kubernetes API and the Sysdig Cloud Teams framework. It continuously polls the Kubernetes API for changes and reflects the changes into the Sysdig Cloud user's Teams structure. By using annotations, the user can decorate Kubernetes namespaces, deployments, and services with configuration that will be recognized by the script. As the annotations appear or change, sysdig-kube-watcher understands these decorations, tracks their changes, and applies them to Sysdig Cloud by using the [Sysdig Cloud Python API](https://github.com/draios/python-sdc-client).
 
@@ -13,8 +13,9 @@ Configurable parameters in `kubewatcher.yaml`:
 
 * `SDC_ADMIN_TOKEN` - The Sysdig Cloud API Token of an admin user in your environment. This is needed because only admin users are capable of creating and configuring Teams.
 * `SDC_URL` (optional) - The URL you use to access Sysdig Cloud. The default is set for SaaS users, but will need to be changed if you have an [on-premise install](https://support.sysdigcloud.com/hc/en-us/articles/206519903-On-Premises-Installation-Guide).
-* `KUBE_URL` - URL for accessing the REST API for your Kubernetes appserver. Kubewatcher currently supports only [direct access over HTTP](http://kubernetes.io/docs/user-guide/accessing-the-cluster/#directly-accessing-the-rest-api).
 * `TEAM_PREFIX` (optional) - A string that will be prepended to the names of Teams and Notification Channels automatically created by Kubewatcher. This will make them easier to identify in the Sysdig Cloud UI.
+
+From inside the pod where it runs, Kubewatcher will automatically attempt to contact the Kubernetes API server at the DNS name `kubernetes` using the credential and certificate bundle as described in the docs [here](https://kubernetes.io/docs/user-guide/accessing-the-cluster/#accessing-the-api-from-a-pod).
 
 ## Running Manually (not recommended)
 
@@ -26,7 +27,7 @@ Clone this repository and ensure all requirements are installed (currently [pyth
 # pip install -r requirements.txt
 ```
 
-Use environment variables for the same settings described in the previous section when starting the script.
+Use environment variables for the same settings described in the previous section when starting the script. In addition, the env variable `KUBE_URL` must be set to the URL for accessing your Kubernetes API server. When running manually, Kubewatcher currently supports only [direct access over HTTP](http://kubernetes.io/docs/user-guide/accessing-the-cluster/#directly-accessing-the-rest-api).
 
 ```
 SDC_ADMIN_TOKEN="abcdef01-2345-6789-abcd-ef0123456789" \
@@ -119,5 +120,4 @@ Changes to the dashboards and alerts (triggered by **sysdigDashboards** and **sy
 
 ## Current Limitations
 
-1. The script currently polls the Kubernetes API, which does not scale well. An enhancement that could address this would use the [watch](https://github.com/kubernetes-incubator/client-python) feature of the Kubernetes API.
-2. The script doesn't support any kind of authentication or encryption when connecting to the Kubernetes API.
+The script currently polls the Kubernetes API, which does not scale well. An enhancement that could address this would use the [watch](https://github.com/kubernetes-incubator/client-python) feature of the Kubernetes API.
