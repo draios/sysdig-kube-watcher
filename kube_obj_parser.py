@@ -14,6 +14,9 @@ TEAM_NOT_EXISTING_ERR = 'Could not find team'
 USER_NOT_FOUND_ERR = 'User not found'
 EXISTING_CHANNEL_ERR = 'A channel with name:'
 ALL_SYSDIG_ANNOTATIONS = [ 'sysdigTeamMembers', 'sysdigDashboards', 'sysdigAlertEmails', 'sysdigAlerts' ]
+K8S_CA_CRT_FILE_NAME = '/var/run/secrets/kubernetes.io/serviceaccount/ca.crt'
+K8S_BEARER_TOKEN_FILE_NAME = '/var/run/secrets/kubernetes.io/serviceaccount/token'
+K8S_DEFAULT_DNS_NAME = 'kubernetes'
 
 class Logger(object):
     @staticmethod
@@ -356,8 +359,8 @@ class KubeURLParser(object):
         self._md5s = {}
         self._parser = KubeObjParser(self._type, self._customer_admin_sdclient, self._customer_id, self._sdc_url, self._team_prefix)
 
-    def parse(self, url):
-        resp = requests.get(url)
+    def parse(self, url, endpoint):
+        resp = self._kube_get(url, endpoint)
         rdata = json.loads(resp.content)
 
 #        while not 'j' in locals():
@@ -399,3 +402,24 @@ class KubeURLParser(object):
                         Logger.log(sys.exc_info()[1], 'error')
                         traceback.print_exc()
                         continue
+
+    def _kube_get(self, url, endpoint):
+        if url:
+            return requests.get(url + endpoint)
+        else:
+            kube_service_port = os.getenv('KUBERNETES_SERVICE_PORT_HTTPS')
+            if kube_service_port is None:
+                Logger.log('Autodiscover of Kubernetes API server failed:' +
+                           'Could not find env variable KUBERNETES_SERVICE_PORT_HTTPS. Exiting.')
+                sys.exit(1)
+            if os.path.exists(K8S_BEARER_TOKEN_FILE_NAME) and os.stat(K8S_BEARER_TOKEN_FILE_NAME).st_size > 0:
+                with open(K8S_BEARER_TOKEN_FILE_NAME, 'r') as tokenfile:
+                    headers = {'Authorization': 'Bearer ' + tokenfile.read() }
+            else:
+                Logger.log('Autodiscover of Kubernetes API server failed: Could not find bearer token at ' +
+                           K8S_BEARER_TOKEN_FILE_NAME + '. Exiting.')
+                sys.exit(1)
+            if os.path.exists(K8S_CA_CRT_FILE_NAME) and os.stat(K8S_CA_CRT_FILE_NAME).st_size > 0:
+                return requests.get('https://' + K8S_DEFAULT_DNS_NAME + ':' + kube_service_port + endpoint,
+                                    verify = K8S_CA_CRT_FILE_NAME,
+                                    headers=headers)

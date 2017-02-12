@@ -16,8 +16,8 @@ spec:
         - name: SDC_ADMIN_TOKEN
           value: abcdef01-2345-6789-abcd-ef0123456789
         - name: SDC_URL
-          value: https://app.sysdigcloud.com
+          value:
         - name: KUBE_URL
-          value: http://10.0.2.15:8080
+          value:
         - name: TEAM_PREFIX
           value: KW-
