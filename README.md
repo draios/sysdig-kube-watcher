@@ -13,6 +13,7 @@ Configurable parameters in `kubewatcher.yaml`:
 
 * `SDC_ADMIN_TOKEN` - The Sysdig Cloud API Token of an admin user in your environment. This is needed because only admin users are capable of creating and configuring Teams.
 * `SDC_URL` (optional) - The URL you use to access Sysdig Cloud. The default is set for SaaS users, but will need to be changed if you have an [on-premise install](https://support.sysdigcloud.com/hc/en-us/articles/206519903-On-Premises-Installation-Guide).
+* `SDC_SSL_VERIFY` - Whether SSL cert verification will be attempted when Kubewatcher connects to `SDC_URL`. SaaS users should leave at its default of `"true"`, while [on-premise installs](https://support.sysdigcloud.com/hc/en-us/articles/206519903-On-Premises-Installation-Guide) will typically need to set this to `"false"`.
 * `TEAM_PREFIX` (optional) - A string that will be prepended to the names of Teams and Notification Channels automatically created by Kubewatcher. This will make them easier to identify in the Sysdig Cloud UI.
 
 From inside the pod where it runs, Kubewatcher will automatically attempt to contact the Kubernetes API server at the DNS name `kubernetes` using the credential and certificate bundle as described in the docs [here](https://kubernetes.io/docs/user-guide/accessing-the-cluster/#accessing-the-api-from-a-pod).
