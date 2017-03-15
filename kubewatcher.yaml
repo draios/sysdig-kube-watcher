@@ -11,12 +11,14 @@ spec:
     spec:
       containers:
       - name: kubewatcher
-        image: sysdig/kubewatcher:0.1.0
+        image: sysdig/kubewatcher:0.1.1
         env:
         - name: SDC_ADMIN_TOKEN
           value: abcdef01-2345-6789-abcd-ef0123456789
         - name: SDC_URL
           value:
+        - name: SDC_SSL_VERIFY
+          value: "true"
         - name: KUBE_URL
           value:
         - name: TEAM_PREFIX
