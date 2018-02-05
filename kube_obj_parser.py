@@ -37,8 +37,7 @@ class KubeObjParser(object):
         self._type = type
 
     def parse(self, objdata):
-        uids = []
-        users = []
+        user_id_map = {}
 
         ###################################################################
         # TEAM CREATION
@@ -79,10 +78,9 @@ class KubeObjParser(object):
                     Logger.log('cannot get user %s: %s' % (uname, res[1]), 'error')
                     continue
 
-            uids.append(res[1]['id'])
-            users.append(uname)
+            user_id_map[uname] = res[1]['id']
 
-        if len(users) == 0:
+        if len(user_id_map) == 0:
             Logger.log('No users specified for this team. Skipping.', 'error')
             return False
 
@@ -127,17 +125,19 @@ class KubeObjParser(object):
             teaminfo = res[1]
             teamid = teaminfo['id']
 
+        old_members = dict(map(lambda m: (m['userId'], m['role']), teaminfo['userRoles']))
+        new_memberships = dict(map(lambda u: (u, 'ROLE_TEAM_EDIT') if user_id_map[u] not in old_members else (u, old_members[user_id_map[u]]), user_id_map.keys()))
+
         if team_exists:
             # Team exists. Detect if there are users to add and edit the team users list.
             newusers = []
+            team_uids = set(old_members.keys())
 
-            if teaminfo['users'] != uids:
+            if team_uids != set(user_id_map.values()):
                 Logger.log("Detected modified %s %s, editing team %s" % (self._type, obj_name, team_name))
-                for j in range(0, len(uids)):
-                    if not uids[j] in teaminfo['users']:
-                        newusers.append(users[j])
+                newusers.append([u for u in user_id_map.keys() if user_id_map[u] not in team_uids])
 
-                res = self._customer_admin_sdclient.edit_team(team_name, users=users)
+                res = self._customer_admin_sdclient.edit_team(team_name, memberships=new_memberships)
                 if res[0] == False:
                     Logger.log('Team editing failed: ' + res[1], 'error')
                     return False
@@ -152,12 +152,12 @@ class KubeObjParser(object):
             elif self._type == 'namespace':
                 flt = 'kubernetes.namespace.name = "%s"' % ns_name
             desc = 'automatically generated team based on deployment annotations'
-            res = self._customer_admin_sdclient.create_team(team_name, filter=flt, description=desc, show='container', users=users)
+            res = self._customer_admin_sdclient.create_team(team_name, filter=flt, description=desc, show='container', memberships=new_memberships)
             if res[0] == False:
                 Logger.log('Team creation failed: ' + res[1], 'error')
                 return False
             teamid = res[1]['team']['id']
-            newusers = users
+            newusers = user_id_map.keys()
 
         ###################################################################
         # TEAM CONFIGURATION
