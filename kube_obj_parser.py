@@ -125,13 +125,13 @@ class KubeObjParser(object):
             teaminfo = res[1]
             teamid = teaminfo['id']
 
-        old_members = dict(map(lambda m: (m['userId'], m['role']), teaminfo['userRoles']))
-        new_memberships = dict(map(lambda u: (u, 'ROLE_TEAM_EDIT') if user_id_map[u] not in old_members else (u, old_members[user_id_map[u]]), user_id_map.keys()))
+        old_memberships = dict(map(lambda m: (m['userId'], m['role']), teaminfo['userRoles']))
+        new_memberships = dict(map(lambda u: (u, 'ROLE_TEAM_EDIT') if user_id_map[u] not in old_memberships else (u, old_memberships[user_id_map[u]]), user_id_map.keys()))
 
         if team_exists:
             # Team exists. Detect if there are users to add and edit the team users list.
             newusers = []
-            team_uids = set(old_members.keys())
+            team_uids = set(old_memberships.keys())
 
             if team_uids != set(user_id_map.values()):
                 Logger.log("Detected modified %s %s, editing team %s" % (self._type, obj_name, team_name))
