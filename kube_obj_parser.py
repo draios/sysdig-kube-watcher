@@ -121,12 +121,12 @@ class KubeObjParser(object):
         if res[0] == False:
             if res[1] == TEAM_NOT_EXISTING_ERR:
                 team_exists = False
+                new_memberships = dict(map(lambda u: (u, 'ROLE_TEAM_EDIT'), user_id_map.keys()))
         else:
             teaminfo = res[1]
             teamid = teaminfo['id']
-
-        old_memberships = dict(map(lambda m: (m['userId'], m['role']), teaminfo['userRoles']))
-        new_memberships = dict(map(lambda u: (u, 'ROLE_TEAM_EDIT') if user_id_map[u] not in old_memberships else (u, old_memberships[user_id_map[u]]), user_id_map.keys()))
+            old_memberships = dict(map(lambda m: (m['userId'], m['role']), teaminfo['userRoles']))
+            new_memberships = dict(map(lambda u: (u, 'ROLE_TEAM_EDIT') if user_id_map[u] not in old_memberships else (u, old_memberships[user_id_map[u]]), user_id_map.keys()))
 
         if team_exists:
             # Team exists. Detect if there are users to add and edit the team users list.
@@ -271,7 +271,7 @@ class KubeObjParser(object):
         #
         # Go through the list of new users and set them up for this team
         #
-        for user in users:
+        for user in user_id_map.keys():
 
             #
             # First of all, we need to impersonate the users in this team
