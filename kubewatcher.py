@@ -6,6 +6,9 @@ import time
 import traceback
 from sdcclient import SdcClient
 from kube_obj_parser import KubeObjParser, KubeURLParser, Logger
+# fix the 'InsecureRequestWarning' error
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 def log(str, severity='info'):
     Logger.log(str, severity)

@@ -404,22 +404,33 @@ class KubeURLParser(object):
                         continue
 
     def _kube_get(self, url, endpoint):
+        headers = {}
+        k8s_cert_existed = False
+        
+        if os.path.exists(K8S_BEARER_TOKEN_FILE_NAME) and os.stat(K8S_BEARER_TOKEN_FILE_NAME).st_size > 0:
+            try:
+                with open(K8S_BEARER_TOKEN_FILE_NAME, 'r') as tokenfile:
+                    headers = {'Authorization': 'Bearer ' + tokenfile.read() }
+            except:
+                Logger.log(sys.exc_info()[1], 'error')
+                traceback.print_exc()
+                sys.exit(1)
+        else:
+            Logger.log('Connect Kubernetes API server failed: Could not find bearer token at ' + K8S_BEARER_TOKEN_FILE_NAME + '. Exiting.')
+            sys.exit(1)
+        if os.path.exists(K8S_CA_CRT_FILE_NAME) and os.stat(K8S_CA_CRT_FILE_NAME).st_size > 0:
+            k8s_cert_existed = True
+
         if url:
-            return requests.get(url + endpoint)
+            if k8s_cert_existed:
+                return requests.get(url + endpoint, verify = K8S_CA_CRT_FILE_NAME, headers=headers)
         else:
             kube_service_port = os.getenv('KUBERNETES_SERVICE_PORT_HTTPS')
             if kube_service_port is None:
                 Logger.log('Autodiscover of Kubernetes API server failed:' +
                            'Could not find env variable KUBERNETES_SERVICE_PORT_HTTPS. Exiting.')
                 sys.exit(1)
-            if os.path.exists(K8S_BEARER_TOKEN_FILE_NAME) and os.stat(K8S_BEARER_TOKEN_FILE_NAME).st_size > 0:
-                with open(K8S_BEARER_TOKEN_FILE_NAME, 'r') as tokenfile:
-                    headers = {'Authorization': 'Bearer ' + tokenfile.read() }
-            else:
-                Logger.log('Autodiscover of Kubernetes API server failed: Could not find bearer token at ' +
-                           K8S_BEARER_TOKEN_FILE_NAME + '. Exiting.')
-                sys.exit(1)
-            if os.path.exists(K8S_CA_CRT_FILE_NAME) and os.stat(K8S_CA_CRT_FILE_NAME).st_size > 0:
+            if k8s_cert_existed:
                 return requests.get('https://' + K8S_DEFAULT_DNS_NAME + ':' + kube_service_port + endpoint,
                                     verify = K8S_CA_CRT_FILE_NAME,
                                     headers=headers)
